@@ -396,6 +396,7 @@ steps:
           - "--username=$BROWSER_STACK_USERNAME"
           - "--access-key=$BROWSER_STACK_ACCESS_KEY"
           - "--fail-fast"
+          - "--appium-version=1.17.0"
     concurrency: 10
     concurrency_group: 'browserstack-app'
     soft_fail:
@@ -416,6 +417,7 @@ steps:
           - "--username=$BROWSER_STACK_USERNAME"
           - "--access-key=$BROWSER_STACK_ACCESS_KEY"
           - "--fail-fast"
+          - "--appium-version=1.18.0"
     concurrency: 10
     concurrency_group: 'browserstack-app'
     soft_fail:
