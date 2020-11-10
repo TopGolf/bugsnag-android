@@ -448,6 +448,6 @@ steps:
           - "--username=$BROWSER_STACK_USERNAME"
           - "--access-key=$BROWSER_STACK_ACCESS_KEY"
           - "--fail-fast"
-          - "features/_smoke_test.feature"
+          - "features/unhandled_exception.feature"
     concurrency: 10
     concurrency_group: 'browserstack-app'
