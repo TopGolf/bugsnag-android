@@ -67,6 +67,18 @@ steps:
     env:
       MAVEN_VERSION: "3.6.1"
 
+  - label: ':android: Build minimal fixture APK'
+    key: "minimal-fixture-apk"
+    depends_on: "android-ci"
+    timeout_in_minutes: 30
+    artifact_paths: build/minimal-fixture.apk
+    plugins:
+      - docker-compose#v3.3.0:
+          run: android-builder
+    env:
+      MAVEN_VERSION: "3.6.1"
+      ORG_GRADLE_PROJECT_minimalfixture: "true"
+
   - label: ':android: NDK 12b SDK 4.4 Instrumentation tests'
     depends_on: "android-ci"
     timeout_in_minutes: 30
@@ -420,3 +432,22 @@ steps:
     concurrency_group: 'browserstack-app'
     soft_fail:
       - exit_status: "*"
+
+  - label: ':android: Minimal fixture end-to-end tests'
+    depends_on: "minimal-fixture-apk"
+    timeout_in_minutes: 30
+    plugins:
+      artifacts#v1.2.0:
+        download: "build/minimal-fixture.apk"
+      docker-compose#v3.3.0:
+        run: android-maze-runner
+        command:
+          - "--app=/app/build/minimal-fixture.apk"
+          - "--farm=bs"
+          - "--device=ANDROID_9_0"
+          - "--username=$BROWSER_STACK_USERNAME"
+          - "--access-key=$BROWSER_STACK_ACCESS_KEY"
+          - "--fail-fast"
+          - "features/_smoke_test.feature"
+    concurrency: 10
+    concurrency_group: 'browserstack-app'

@@ -67,7 +67,6 @@ class BugsnagSoExtractionTask extends DefaultTask {
     @TaskAction
     def extractSoFiles() {
         File file = findAarFile()
-        println("Found file $file")
 
         project.copy {
             from(project.zipTree(file))
