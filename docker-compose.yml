@@ -29,6 +29,8 @@ services:
       dockerfile: dockerfiles/Dockerfile.android-builder
       args:
         BRANCH_NAME: ${BRANCH_NAME}
+    environment:
+      ORG_GRADLE_PROJECT_minimalfixture: "true"
     volumes:
       - ./build:/app/build
 

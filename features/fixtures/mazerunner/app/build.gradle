@@ -54,6 +54,17 @@ android {
     lintOptions {
         tasks.lint.enabled = false
     }
+
+    // conditionally alter the filename depending on the fixture
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            if (!project.hasProperty("org.gradle.project.minimalfixture")) {
+                outputFileName = "fixture.apk"
+            } else {
+                outputFileName = "minimal-fixture.apk"
+            }
+        }
+    }
 }
 
 dependencies {
