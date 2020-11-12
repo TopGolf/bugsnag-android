@@ -30,7 +30,7 @@ services:
       args:
         BRANCH_NAME: ${BRANCH_NAME}
     environment:
-      ORG_GRADLE_PROJECT_minimalfixture: "true"
+      MINIMAL_FIXTURE: "true"
     volumes:
       - ./build:/app/build
 

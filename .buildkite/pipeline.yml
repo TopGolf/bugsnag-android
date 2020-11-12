@@ -76,7 +76,7 @@ steps:
       - docker-compose#v3.3.0:
           run: android-builder
           args:
-            - ORG_GRADLE_PROJECT_minimalfixture=true
+            - MINIMAL_FIXTURE=true
     env:
       MAVEN_VERSION: "3.6.1"
 
