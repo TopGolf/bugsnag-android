@@ -30,7 +30,7 @@ services:
       args:
         BRANCH_NAME: ${BRANCH_NAME}
     environment:
-      MINIMAL_FIXTURE: "true"
+      MINIMAL_FIXTURE: "false"
     volumes:
       - ./build:/app/build
 

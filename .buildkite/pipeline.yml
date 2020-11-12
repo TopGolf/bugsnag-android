@@ -64,6 +64,8 @@ steps:
     plugins:
       - docker-compose#v3.3.0:
           run: android-builder
+          args:
+            - MINIMAL_FIXTURE=false
     env:
       MAVEN_VERSION: "3.6.1"
 

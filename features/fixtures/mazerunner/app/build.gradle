@@ -58,10 +58,10 @@ android {
     // conditionally alter the filename depending on the fixture
     applicationVariants.all { variant ->
         variant.outputs.all {
-            if (!project.hasProperty("MINIMAL_FIXTURE")) {
-                outputFileName = "fixture.apk"
-            } else {
+            if ("true" == project.property("MINIMAL_FIXTURE")) {
                 outputFileName = "minimal-fixture.apk"
+            } else {
+                outputFileName = "fixture.apk"
             }
         }
     }
