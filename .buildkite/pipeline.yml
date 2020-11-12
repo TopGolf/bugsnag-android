@@ -75,9 +75,10 @@ steps:
     plugins:
       - docker-compose#v3.3.0:
           run: android-builder
+          args:
+            - ORG_GRADLE_PROJECT_minimalfixture=true
     env:
       MAVEN_VERSION: "3.6.1"
-      ORG_GRADLE_PROJECT_minimalfixture: "true"
 
   - label: ':android: NDK 12b SDK 4.4 Instrumentation tests'
     depends_on: "android-ci"
