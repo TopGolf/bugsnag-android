@@ -1,6 +1,8 @@
 // see https://docs.gradle.org/current/userguide/build_environment.html#sec:project_properties
 
 dependencies {
+    project.logger.lifecycle("Project prop=${project.property("MINIMAL_FIXTURE")}")
+
     if ("true" == project.property("MINIMAL_FIXTURE")) {
         // compile with only bugsnag-android-core and the JVM scenarios.
         // this verifies that the module is capable of functioning without
