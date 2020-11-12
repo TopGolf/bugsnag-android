@@ -9,6 +9,5 @@ RUN ./gradlew -PVERSION_NAME=9.9.9 assembleRelease publishToMavenLocal
 COPY features/ /app/features
 
 ENV FIXTURE_PROJECT=/app/features/fixtures/mazerunner
-ENV MINIMAL_FIXTURE=${MINIMAL_FIXTURE}
-RUN echo "Printing gradle envar MINIMAL_FIXTURE"
-CMD ./gradlew -p=${FIXTURE_PROJECT} assembleRelease -PMINIMAL_FIXTURE=${MINIMAL_FIXTURE} && cp -R ${FIXTURE_PROJECT}/app/build/outputs/apk/release /app/build
+
+CMD echo "MINIMAL_FIXTURE is ${MINIMAL_FIXTURE}" && ./gradlew -p=${FIXTURE_PROJECT} assembleRelease -PMINIMAL_FIXTURE=${MINIMAL_FIXTURE} && cp -R ${FIXTURE_PROJECT}/app/build/outputs/apk/release /app/build

@@ -64,10 +64,9 @@ steps:
     plugins:
       - docker-compose#v3.3.0:
           run: android-builder
-          args:
-            - MINIMAL_FIXTURE=false
     env:
       MAVEN_VERSION: "3.6.1"
+      MINIMAL_FIXTURE: false
 
   - label: ':android: Build minimal fixture APK'
     key: "minimal-fixture-apk"
@@ -77,10 +76,9 @@ steps:
     plugins:
       - docker-compose#v3.3.0:
           run: android-builder
-          args:
-            - MINIMAL_FIXTURE=true
     env:
       MAVEN_VERSION: "3.6.1"
+      MINIMAL_FIXTURE: true
 
   - label: ':android: NDK 12b SDK 4.4 Instrumentation tests'
     depends_on: "android-ci"
