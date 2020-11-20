@@ -11,9 +11,9 @@ import java.util.Collections;
 
 import androidx.annotation.NonNull;
 
-public class AppNotRespondingOutsideReleaseStagesScenario extends Scenario {
+public class JvmAnrOutsideReleaseStagesScenario extends Scenario {
 
-    public AppNotRespondingOutsideReleaseStagesScenario(@NonNull Configuration config, @NonNull Context context) {
+    public JvmAnrOutsideReleaseStagesScenario(@NonNull Configuration config, @NonNull Context context) {
         super(config, context);
         config.setAutoTrackSessions(false);
         config.setEnabledReleaseStages(Collections.singleton("fee-fi-fo-fum"));
@@ -27,7 +27,7 @@ public class AppNotRespondingOutsideReleaseStagesScenario extends Scenario {
             @Override
             public void run() {
                 try {
-                    Thread.sleep(50000); // Forever
+                    while (true) { }
                 } catch (Exception _ex) {
                     // Catch possible thread interruption exception
                 }

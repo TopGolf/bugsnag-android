@@ -9,8 +9,8 @@ import android.os.Handler
 /**
  * Stops the app from responding for a time period
  */
-internal class AppNotRespondingScenario(config: Configuration,
-                                        context: Context) : Scenario(config, context) {
+internal class JvmAnrScenario(config: Configuration,
+                              context: Context) : Scenario(config, context) {
     init {
         config.autoTrackSessions = false
         config.enabledErrorTypes.anrs = true
@@ -20,7 +20,7 @@ internal class AppNotRespondingScenario(config: Configuration,
         super.run()
         val main = Handler(Looper.getMainLooper())
         main.postDelayed(Runnable {
-            Thread.sleep(50000) // FOREVER
+            while (true) { }
         }, 1) // A moment of delay so there is something to 'tap' onscreen
     }
 }
