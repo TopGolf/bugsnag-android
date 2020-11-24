@@ -10,6 +10,11 @@ Scenario: Test handled Kotlin Exception
     And the exception "errorClass" equals "java.lang.RuntimeException"
     And the exception "message" equals "HandledExceptionScenario"
     And the payload field "events.0.device.cpuAbi" is a non-empty array
+    And the "Bugsnag-Stacktrace-Types" header equals "android"
+    And the payload field "events.0.exceptions.0.type" equals "android"
+    And the payload field "events.0.exceptions.0.stacktrace.0.type" is null
+    And the payload field "events.0.threads.0.type" equals "android"
+    And the payload field "events.0.threads.0.stacktrace.0.type" is null
 
 Scenario: Test Unhandled Java Exception with Session
     When I run "UnhandledExceptionJavaScenario" and relaunch the app
@@ -19,6 +24,12 @@ Scenario: Test Unhandled Java Exception with Session
     And the payload field "events" is an array with 1 elements
     And the exception "errorClass" equals "java.lang.RuntimeException"
     And the exception "message" equals "UnhandledExceptionJavaScenario"
+    And the "Bugsnag-Stacktrace-Types" header equals "android"
+    And the payload field "events.0.exceptions.0.type" equals "android"
+    And the payload field "events.0.exceptions.0.stacktrace.0.type" is null
+    And the payload field "events.0.threads.0.type" equals "android"
+    And the payload field "events.0.threads.0.stacktrace.0.type" is null
+    And the exception stacktrace matches the thread stacktrace
 
 Scenario: Notifying in C
     When I run "CXXNotifyScenario"
@@ -28,6 +39,11 @@ Scenario: Notifying in C
     And the exception "errorClass" equals "Vitamin C deficiency"
     And the exception "message" equals "9 out of 10 adults do not get their 5-a-day"
     And the event "unhandled" is false
+    And the "Bugsnag-Stacktrace-Types" header equals "c"
+    And the payload field "events.0.exceptions.0.type" equals "c"
+    And the payload field "events.0.exceptions.0.stacktrace.0.type" is null
+    And the payload field "events.0.threads.0.type" equals "android"
+    And the payload field "events.0.threads.0.stacktrace.0.type" is null
 
 Scenario: Raise SIGSEGV
     When I run "CXXSigsegvScenario" and relaunch the app
@@ -39,6 +55,10 @@ Scenario: Raise SIGSEGV
     And the exception "type" equals "c"
     And the event "severity" equals "error"
     And the event "unhandled" is true
+    And the "Bugsnag-Stacktrace-Types" header equals "c"
+    And the payload field "events.0.exceptions.0.type" equals "c"
+    And the payload field "events.0.exceptions.0.stacktrace.0.type" is null
+    And the payload field "events.0.threads" is null
 
 Scenario: Manual Session sends
     When I run "ManualSessionScenario"
@@ -62,3 +82,4 @@ Scenario: Sleeping the main thread with pending touch events when autoDetectAnrs
     And the request is valid for the error reporting API version "4.0" for the "Android Bugsnag Notifier" notifier
     And the exception "errorClass" equals "ANR"
     And the exception "message" starts with " Input dispatching timed out"
+    And the exception stacktrace matches the thread stacktrace

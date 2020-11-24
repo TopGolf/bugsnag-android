@@ -7,6 +7,7 @@ import androidx.annotation.VisibleForTesting;
 
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
@@ -32,7 +33,8 @@ class DeliveryDelegate extends BaseObservable {
     void deliver(@NonNull Event event) {
         logger.d("DeliveryDelegate#deliver() - event being stored/delivered by Client");
         // Build the eventPayload
-        EventPayload eventPayload = new EventPayload(event.getApiKey(), event, notifier);
+        String apiKey = event.getApiKey();
+        EventPayload eventPayload = new EventPayload(apiKey, event, notifier, immutableConfig);
         Session session = event.getSession();
 
         if (session != null) {
@@ -47,9 +49,9 @@ class DeliveryDelegate extends BaseObservable {
 
         if (event.isUnhandled()) {
             // should only send unhandled errors if they don't terminate the process (i.e. ANRs)
-            String severityReasonType = event.impl.getSeverityReasonType();
+            String severityReasonType = event.getImpl().getSeverityReasonType();
             boolean promiseRejection = REASON_PROMISE_REJECTION.equals(severityReasonType);
-            boolean anr = event.impl.isAnr(event);
+            boolean anr = event.getImpl().isAnr(event);
             cacheEvent(event, anr || promiseRejection);
         } else {
             deliverPayloadAsync(event, eventPayload);
@@ -77,9 +79,7 @@ class DeliveryDelegate extends BaseObservable {
     @VisibleForTesting
     DeliveryStatus deliverPayloadInternal(@NonNull EventPayload payload, @NonNull Event event) {
         logger.d("DeliveryDelegate#deliverPayloadInternal() - attempting event delivery");
-
-        String apiKey = payload.getApiKey();
-        DeliveryParams deliveryParams = immutableConfig.getErrorApiDeliveryParams(apiKey);
+        DeliveryParams deliveryParams = immutableConfig.getErrorApiDeliveryParams(payload);
         Delivery delivery = immutableConfig.getDelivery();
         DeliveryStatus deliveryStatus = delivery.deliver(payload, deliveryParams);
 

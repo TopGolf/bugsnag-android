@@ -15,19 +15,40 @@ class EventPayload : JsonStream.Streamable {
     private val eventFile: File?
     val event: Event?
     private val notifier: Notifier
+    private val config: ImmutableConfig
 
-    internal constructor(apiKey: String?, eventFile: File, notifier: Notifier) {
+    internal constructor(
+        apiKey: String?,
+        eventFile: File,
+        notifier: Notifier,
+        config: ImmutableConfig
+    ) {
         this.apiKey = apiKey
         this.eventFile = eventFile
         this.event = null
         this.notifier = notifier
+        this.config = config
     }
 
-    internal constructor(apiKey: String?, event: Event, notifier: Notifier) {
+    internal constructor(
+        apiKey: String?,
+        event: Event,
+        notifier: Notifier,
+        config: ImmutableConfig
+    ) {
         this.apiKey = apiKey
         this.eventFile = null
         this.event = event
         this.notifier = notifier
+        this.config = config
+    }
+
+    internal fun getErrorTypes(): Set<ErrorType> {
+        return when {
+            event != null -> event.impl.getErrorTypesFromStackframes()
+            eventFile != null -> EventFilenameInfo.fromFile(eventFile, config).errorTypes
+            else -> emptySet()
+        }
     }
 
     @Throws(IOException::class)
@@ -36,7 +57,6 @@ class EventPayload : JsonStream.Streamable {
         writer.name("apiKey").value(apiKey)
         writer.name("payloadVersion").value("4.0")
         writer.name("notifier").value(notifier)
-
         writer.name("events").beginArray()
 
         when {
