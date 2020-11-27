@@ -15,7 +15,7 @@ internal class SynchronizedStreamableStore<T : JsonStream.Streamable>(
     @Throws(IOException::class)
     fun persist(streamable: T) {
         lock.writeLock().withLock {
-            file.writer().use {
+            file.writer().buffered().use {
                 streamable.toStream(JsonStream(it))
                 true
             }
@@ -25,7 +25,7 @@ internal class SynchronizedStreamableStore<T : JsonStream.Streamable>(
     @Throws(IOException::class)
     fun load(loadCallback: (JsonReader) -> T): T {
         lock.readLock().withLock {
-            return file.reader().use {
+            return file.reader().buffered().use {
                 loadCallback(JsonReader(it))
             }
         }
