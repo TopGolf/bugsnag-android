@@ -18,7 +18,6 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import kotlin.Unit;
-import kotlin.jvm.functions.Function0;
 import kotlin.jvm.functions.Function2;
 
 import java.io.File;
@@ -30,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Observer;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
@@ -167,16 +165,16 @@ public class Client implements MetadataAware, CallbackAware, UserAware {
         File deviceIdFile = new File(appContext.getFilesDir(), "device-id");
         DeviceIdStore deviceIdStore = new DeviceIdStore(deviceIdFile, logger);
         String deviceId = deviceIdStore.loadDeviceId(appContext);
-        userState = loadUserState(configuration, deviceId);
+        userState = loadUserState(deviceId, configuration.getUser());
+
+        // TODO delete old SharedPreferences file (if it exists)
 
         DeviceBuildInfo info = DeviceBuildInfo.Companion.defaultInfo();
         Resources resources = appContext.getResources();
         deviceDataCollector = new DeviceDataCollector(connectivity, appContext,
                 resources, deviceId, info, Environment.getDataDirectory(), logger);
 
-
         if (appContext instanceof Application) {
-
             Application application = (Application) appContext;
             sessionLifecycleCallback = new SessionLifecycleCallback(sessionTracker);
             application.registerActivityLifecycleCallbacks(sessionLifecycleCallback);
@@ -251,11 +249,16 @@ public class Client implements MetadataAware, CallbackAware, UserAware {
         leaveAutoBreadcrumb("Bugsnag loaded", BreadcrumbType.STATE, data);
     }
 
-    private UserState loadUserState(@NonNull Configuration configuration, String deviceId) {
+    // TODO migrate to user store
+    private UserState loadUserState(String deviceId, User user) {
         boolean persistUser = immutableConfig.getPersistUser();
-        UserRepository userRepository = new UserRepository(sharedPrefs, persistUser, deviceId);
-        UserState state = new UserState(userRepository);
-        User user = configuration.getUser();
+
+        // FIXME duplication with device prefMigrator
+        SharedPrefMigrator prefMigrator = new SharedPrefMigrator(appContext);
+        File userInfo = new File(immutableConfig.getPersistenceDirectory(), "user-info.json");
+        UserStore userStore = new UserStore(prefMigrator,
+                sharedPrefs, persistUser, deviceId, userInfo, logger);
+        UserState state = new UserState(userStore);
 
         if (user.getId() != null || user.getEmail() != null || user.getName() != null) {
             state.setUser(user.getId(), user.getEmail(), user.getName());

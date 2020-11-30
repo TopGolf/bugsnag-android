@@ -12,6 +12,12 @@ internal class SharedPrefMigrator(context: Context) {
 
     fun loadDeviceId() = prefs.getString(INSTALL_ID_KEY, null)
 
+    fun loadUser(deviceId: String?) = User(
+        prefs.getString(UserStore.USER_ID_KEY, deviceId),
+        prefs.getString(UserStore.USER_EMAIL_KEY, null),
+        prefs.getString(UserStore.USER_NAME_KEY, null)
+    )
+
     companion object {
         private const val INSTALL_ID_KEY = "install.iud"
     }

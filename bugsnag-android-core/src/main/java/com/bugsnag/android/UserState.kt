@@ -1,13 +1,13 @@
 package com.bugsnag.android
 
-internal class UserState(private val userRepository: UserRepository) : BaseObservable() {
+internal class UserState(private val userStore: UserStore) : BaseObservable() {
 
-    var user = userRepository.load()
+    var user = userStore.load() // FIXME should be other way around
         private set
 
     fun setUser(id: String?, email: String?, name: String?) {
         user = User(id, email, name)
-        userRepository.save(user)
+        userStore.save(user)
         emitObservableEvent()
     }
 

@@ -40,4 +40,29 @@ internal class SharedPrefMigratorTest {
         `when`(prefs.getString("install.iud", null)).thenReturn("f09asdfb")
         assertEquals("f09asdfb", prefMigrator.loadDeviceId())
     }
+
+    @Test
+    fun emptyUser() {
+        `when`(prefs.getString("user.id", "f09asdfb")).thenReturn("f09asdfb")
+        `when`(prefs.getString("user.email", null)).thenReturn(null)
+        `when`(prefs.getString("user.name", null)).thenReturn(null)
+
+        val observed = prefMigrator.loadUser("f09asdfb")
+        assertEquals("f09asdfb", observed.id)
+        assertNull(observed.email)
+        assertNull(observed.name)
+    }
+
+    @Test
+    fun populatedUser() {
+        `when`(prefs.getString("user.id", "f09asdfb")).thenReturn("abc75092")
+        `when`(prefs.getString("user.email", null)).thenReturn("test@example.com")
+        `when`(prefs.getString("user.name", null)).thenReturn("Joe")
+
+        val expected = User("abc75092", "test@example.com", "Joe")
+        val observed = prefMigrator.loadUser("f09asdfb")
+        assertEquals(expected.id, observed.id)
+        assertEquals(expected.email, observed.email)
+        assertEquals(expected.name, observed.name)
+    }
 }

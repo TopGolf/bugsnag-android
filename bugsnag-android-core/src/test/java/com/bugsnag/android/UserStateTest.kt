@@ -12,16 +12,16 @@ import org.mockito.junit.MockitoJUnitRunner
 internal class UserStateTest {
 
     @Mock
-    lateinit var repository: UserRepository
+    lateinit var store: UserStore
 
     @Before
     fun setUp() {
-        `when`(repository.load()).thenReturn(User("123", "j@bugsnag.com", "Jamie"))
+        `when`(store.load()).thenReturn(User("123", "j@bugsnag.com", "Jamie"))
     }
 
     @Test
     fun getUser() {
-        val state = UserState(repository)
+        val state = UserState(store)
         assertEquals("123", state.user.id)
         assertEquals("j@bugsnag.com", state.user.email)
         assertEquals("Jamie", state.user.name)
@@ -29,7 +29,7 @@ internal class UserStateTest {
 
     @Test
     fun setUser() {
-        val state = UserState(repository)
+        val state = UserState(store)
         val msgs = mutableListOf<StateEvent>()
         state.addObserver { _, arg ->
             msgs.add(arg as StateEvent)
