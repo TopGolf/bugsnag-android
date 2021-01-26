@@ -25,3 +25,4 @@ bugsnag_test
 *.crash
 .cxx/
 .project
+Toptracer_export/temp/
