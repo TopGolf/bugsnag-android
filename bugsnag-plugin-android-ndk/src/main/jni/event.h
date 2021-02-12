@@ -9,7 +9,7 @@
  * Maximum number of values stored in metadata. Configures a default if not
  * defined.
  */
-#define BUGSNAG_METADATA_MAX 128
+#define BUGSNAG_METADATA_MAX 16
 #endif
 #ifndef BUGSNAG_FRAMES_MAX
 /**
@@ -133,7 +133,7 @@ typedef struct {
     /**
      * Value if type is BSG_CHAR_VALUE
      */
-    char char_value[64];
+    char char_value[512];
     /**
      * Value if type is BSG_DOUBLE_VALUE
      */
