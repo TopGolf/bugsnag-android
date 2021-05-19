@@ -1,8 +1,8 @@
 package com.bugsnag.android
 
+import com.bugsnag.android.BugsnagTestUtils.generateAppWithState
 import com.bugsnag.android.BugsnagTestUtils.generateDeviceWithState
 import com.bugsnag.android.BugsnagTestUtils.generateImmutableConfig
-import com.bugsnag.android.BugsnagTestUtils.generateAppWithState
 import org.junit.Test
 import java.io.StringWriter
 import java.util.Date
@@ -14,7 +14,7 @@ internal class EventRedactionTest {
         val event = Event(
             null,
             generateImmutableConfig(),
-            HandledState.newInstance(HandledState.REASON_HANDLED_EXCEPTION),
+            SeverityReason.newInstance(SeverityReason.REASON_HANDLED_EXCEPTION),
             NoopLogger
         )
         event.app = generateAppWithState()

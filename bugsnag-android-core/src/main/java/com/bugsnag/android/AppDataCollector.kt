@@ -4,8 +4,8 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.SystemClock
-
 import java.util.HashMap
 
 /**
@@ -17,6 +17,7 @@ internal class AppDataCollector(
     private val config: ImmutableConfig,
     private val sessionTracker: SessionTracker,
     private val activityManager: ActivityManager?,
+    private val launchCrashTracker: LaunchCrashTracker,
     private val logger: Logger
 ) {
     var codeBundleId: String? = null
@@ -34,7 +35,8 @@ internal class AppDataCollector(
 
     fun generateAppWithState(): AppWithState = AppWithState(
         config, binaryArch, packageName, releaseStage, versionName, codeBundleId,
-        getDurationMs(), calculateDurationInForeground(), sessionTracker.isInForeground
+        getDurationMs(), calculateDurationInForeground(), sessionTracker.isInForeground,
+        launchCrashTracker.isLaunching()
     )
 
     fun getAppDataMetadata(): MutableMap<String, Any?> {
@@ -43,6 +45,10 @@ internal class AppDataCollector(
         map["activeScreen"] = getActiveScreenClass()
         map["memoryUsage"] = getMemoryUsage()
         map["lowMemory"] = isLowMemory()
+
+        isBackgroundWorkRestricted()?.let {
+            map["backgroundWorkRestricted"] = it
+        }
         return map
     }
 
@@ -55,6 +61,20 @@ internal class AppDataCollector(
     private fun getMemoryUsage(): Long {
         val runtime = Runtime.getRuntime()
         return runtime.totalMemory() - runtime.freeMemory()
+    }
+
+    /**
+     * Checks whether the user has restricted the amount of work this app can do in the background.
+     * https://developer.android.com/reference/android/app/ActivityManager#isBackgroundRestricted()
+     */
+    private fun isBackgroundWorkRestricted(): Boolean? {
+        return if (activityManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            null
+        } else if (activityManager.isBackgroundRestricted) {
+            true // only return non-null value if true to avoid noise in error reports
+        } else {
+            null
+        }
     }
 
     /**
@@ -92,9 +112,11 @@ internal class AppDataCollector(
      * AndroidManifest.xml
      */
     private fun getAppName(): String? {
-        val hasInfo = packageManager != null && appInfo != null
+        val copy = appInfo
         return when {
-            hasInfo -> packageManager?.getApplicationLabel(appInfo).toString()
+            packageManager != null && copy != null -> {
+                packageManager.getApplicationLabel(copy).toString()
+            }
             else -> null
         }
     }
@@ -108,5 +130,4 @@ internal class AppDataCollector(
          */
         fun getDurationMs(): Long = SystemClock.elapsedRealtime() - startTimeMs
     }
-
 }

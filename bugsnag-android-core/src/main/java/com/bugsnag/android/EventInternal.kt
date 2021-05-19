@@ -5,34 +5,44 @@ import java.io.IOException
 internal class EventInternal @JvmOverloads internal constructor(
     val originalError: Throwable? = null,
     config: ImmutableConfig,
-    private var handledState: HandledState,
+    private var severityReason: SeverityReason,
     data: Metadata = Metadata()
 ) : JsonStream.Streamable, MetadataAware, UserAware {
 
     val metadata: Metadata = data.copy()
     private val discardClasses: Set<String> = config.discardClasses.toSet()
+    private val projectPackages = config.projectPackages
 
     @JvmField
     internal var session: Session? = null
 
     var severity: Severity
-        get() = handledState.currentSeverity
+        get() = severityReason.currentSeverity
         set(value) {
-            handledState.currentSeverity = value
+            severityReason.currentSeverity = value
         }
 
     var apiKey: String = config.apiKey
     lateinit var app: AppWithState
     lateinit var device: DeviceWithState
-    val isUnhandled: Boolean = handledState.isUnhandled
     var breadcrumbs: MutableList<Breadcrumb> = mutableListOf()
+    var unhandled: Boolean
+        get() = severityReason.unhandled
+        set(value) {
+            severityReason.unhandled = value
+        }
+    val unhandledOverridden: Boolean
+        get() = severityReason.unhandledOverridden
+
+    val originalUnhandled: Boolean
+        get() = severityReason.originalUnhandled
 
     var errors: MutableList<Error> = when (originalError) {
         null -> mutableListOf()
         else -> Error.createError(originalError, config.projectPackages, config.logger)
     }
 
-    var threads: MutableList<Thread> = ThreadState(originalError, isUnhandled, config).threads
+    var threads: MutableList<Thread> = ThreadState(originalError, unhandled, config).threads
     var groupingHash: String? = null
     var context: String? = null
 
@@ -66,13 +76,19 @@ internal class EventInternal @JvmOverloads internal constructor(
         writer.name("metaData").value(metadata)
 
         writer.name("severity").value(severity)
-        writer.name("severityReason").value(handledState)
-        writer.name("unhandled").value(handledState.isUnhandled)
+        writer.name("severityReason").value(severityReason)
+        writer.name("unhandled").value(severityReason.unhandled)
 
         // Write exception info
         writer.name("exceptions")
         writer.beginArray()
         errors.forEach { writer.value(it) }
+        writer.endArray()
+
+        // Write project packages
+        writer.name("projectPackages")
+        writer.beginArray()
+        projectPackages.forEach { writer.value(it) }
         writer.endArray()
 
         // Write user info
@@ -93,7 +109,7 @@ internal class EventInternal @JvmOverloads internal constructor(
             val copy = Session.copySession(session)
             writer.name("session").beginObject()
             writer.name("id").value(copy.id)
-            writer.name("startedAt").value(DateUtils.toIso8601(copy.startedAt))
+            writer.name("startedAt").value(copy.startedAt)
             writer.name("events").beginObject()
             writer.name("handled").value(copy.handledCount.toLong())
             writer.name("unhandled").value(copy.unhandledCount.toLong())
@@ -104,13 +120,24 @@ internal class EventInternal @JvmOverloads internal constructor(
         writer.endObject()
     }
 
+    internal fun getErrorTypesFromStackframes(): Set<ErrorType> {
+        val errorTypes = errors.mapNotNull(Error::getType).toSet()
+        val frameOverrideTypes = errors
+            .map { it.stacktrace }
+            .flatMap { it.mapNotNull(Stackframe::type) }
+        return errorTypes.plus(frameOverrideTypes)
+    }
+
     protected fun updateSeverityInternal(severity: Severity) {
-        handledState = HandledState.newInstance(handledState.severityReasonType,
-            severity, handledState.attributeValue)
+        severityReason = SeverityReason.newInstance(
+            severityReason.severityReasonType,
+            severity,
+            severityReason.attributeValue
+        )
         this.severity = severity
     }
 
-    fun getSeverityReasonType(): String = handledState.severityReasonType
+    fun getSeverityReasonType(): String = severityReason.severityReasonType
 
     override fun setUser(id: String?, email: String?, name: String?) {
         _user = User(id, email, name)
@@ -120,19 +147,14 @@ internal class EventInternal @JvmOverloads internal constructor(
 
     override fun addMetadata(section: String, value: Map<String, Any?>) = metadata.addMetadata(section, value)
 
-
     override fun addMetadata(section: String, key: String, value: Any?) =
         metadata.addMetadata(section, key, value)
 
-
     override fun clearMetadata(section: String) = metadata.clearMetadata(section)
-
 
     override fun clearMetadata(section: String, key: String) = metadata.clearMetadata(section, key)
 
-
     override fun getMetadata(section: String) = metadata.getMetadata(section)
-
 
     override fun getMetadata(section: String, key: String) = metadata.getMetadata(section, key)
 }

@@ -5,14 +5,14 @@ import java.io.IOException
 /**
  * Capture and serialize the state of all threads at the time of an exception.
  */
-internal class ThreadState @JvmOverloads constructor(
+internal class ThreadState @Suppress("LongParameterList") @JvmOverloads constructor(
     exc: Throwable?,
     isUnhandled: Boolean,
     sendThreads: ThreadSendPolicy,
     projectPackages: Collection<String>,
     logger: Logger,
     currentThread: java.lang.Thread = java.lang.Thread.currentThread(),
-    stackTraces: MutableMap<java.lang.Thread, Array<StackTraceElement>> = java.lang.Thread.getAllStackTraces()
+    stackTraces: MutableMap<java.lang.Thread, Array<StackTraceElement>>? = null
 ) : JsonStream.Streamable {
 
     internal constructor(
@@ -24,13 +24,17 @@ internal class ThreadState @JvmOverloads constructor(
     val threads: MutableList<Thread>
 
     init {
-        val recordThreads = sendThreads == ThreadSendPolicy.ALWAYS
-                || (sendThreads == ThreadSendPolicy.UNHANDLED_ONLY && isUnhandled)
+        val recordThreads = sendThreads == ThreadSendPolicy.ALWAYS ||
+            (sendThreads == ThreadSendPolicy.UNHANDLED_ONLY && isUnhandled)
 
         threads = when {
             recordThreads -> captureThreadTrace(
-                stackTraces, currentThread, exc,
-                isUnhandled, projectPackages, logger
+                stackTraces ?: java.lang.Thread.getAllStackTraces(),
+                currentThread,
+                exc,
+                isUnhandled,
+                projectPackages,
+                logger
             )
             else -> mutableListOf()
         }
@@ -56,10 +60,16 @@ internal class ThreadState @JvmOverloads constructor(
         val currentThreadId = currentThread.id
         return stackTraces.keys
             .sortedBy { it.id }
-            .map {
-                val stacktrace = Stacktrace(stackTraces[it]!!, projectPackages, logger)
-                val errorThread = it.id == currentThreadId
-                Thread(it.id, it.name, ThreadType.ANDROID, errorThread, stacktrace, logger)
+            .mapNotNull { thread ->
+                val trace = stackTraces[thread]
+
+                if (trace != null) {
+                    val stacktrace = Stacktrace.stacktraceFromJavaTrace(trace, projectPackages, logger)
+                    val errorThread = thread.id == currentThreadId
+                    Thread(thread.id, thread.name, ThreadType.ANDROID, errorThread, stacktrace, logger)
+                } else {
+                    null
+                }
             }.toMutableList()
     }
 

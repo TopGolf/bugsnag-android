@@ -10,7 +10,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import org.junit.runners.Parameterized.Parameter
 import org.junit.runners.Parameterized.Parameters
-import org.mockito.Mockito.*
+import org.mockito.Mockito.`when`
+import org.mockito.Mockito.any
+import org.mockito.Mockito.anyInt
+import org.mockito.Mockito.mock
 
 @RunWith(Parameterized::class)
 internal class AppMetadataSerializationTest {
@@ -23,6 +26,7 @@ internal class AppMetadataSerializationTest {
             val pm = mock(PackageManager::class.java)
             val am = mock(ActivityManager::class.java)
             val sessionTracker = mock(SessionTracker::class.java)
+            val launchCrashTracker = mock(LaunchCrashTracker::class.java)
             val config = BugsnagTestUtils.generateConfiguration()
 
             // populate summary fields
@@ -46,6 +50,7 @@ internal class AppMetadataSerializationTest {
                 convert(config),
                 sessionTracker,
                 am,
+                launchCrashTracker,
                 NoopLogger
             )
             appData.codeBundleId = "foo-99"

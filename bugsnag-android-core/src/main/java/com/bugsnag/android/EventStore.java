@@ -1,21 +1,20 @@
 package com.bugsnag.android;
 
-import android.content.Context;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.io.File;
-import java.lang.Thread;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Store and flush Event reports which couldn't be sent immediately due to
@@ -23,17 +22,13 @@ import java.util.concurrent.Semaphore;
  */
 class EventStore extends FileStore {
 
-    private static final String STARTUP_CRASH = "_startupcrash";
     private static final long LAUNCH_CRASH_TIMEOUT_MS = 2000;
-    private static final int LAUNCH_CRASH_POLL_MS = 50;
-    private static final int MAX_EVENT_COUNT = 32;
 
-    volatile boolean flushOnLaunchCompleted = false;
-    private final Semaphore semaphore = new Semaphore(1);
     private final ImmutableConfig config;
-    private final Logger logger;
     private final Delegate delegate;
     private final Notifier notifier;
+    private final BackgroundTaskService bgTaskSevice;
+    final Logger logger;
 
     static final Comparator<File> EVENT_COMPARATOR = new Comparator<File>() {
         @Override
@@ -47,82 +42,103 @@ class EventStore extends FileStore {
             if (rhs == null) {
                 return -1;
             }
-            String lhsName = lhs.getName().replaceAll(STARTUP_CRASH, "");
-            String rhsName = rhs.getName().replaceAll(STARTUP_CRASH, "");
-            return lhsName.compareTo(rhsName);
+            return lhs.compareTo(rhs);
         }
     };
 
     EventStore(@NonNull ImmutableConfig config,
-               @NonNull Context appContext, @NonNull Logger logger,
-               Notifier notifier, Delegate delegate) {
-        super(appContext, "/bugsnag-errors/", MAX_EVENT_COUNT, EVENT_COMPARATOR, logger, delegate);
+               @NonNull Logger logger,
+               Notifier notifier,
+               BackgroundTaskService bgTaskSevice,
+               Delegate delegate) {
+        super(new File(config.getPersistenceDirectory(), "bugsnag-errors"),
+                config.getMaxPersistedEvents(),
+                EVENT_COMPARATOR,
+                logger,
+                delegate);
         this.config = config;
         this.logger = logger;
         this.delegate = delegate;
         this.notifier = notifier;
+        this.bgTaskSevice = bgTaskSevice;
     }
 
+    /**
+     * Flush startup crashes synchronously on the main thread
+     */
     void flushOnLaunch() {
-        if (config.getLaunchCrashThresholdMs() != 0) {
-            List<File> storedFiles = findStoredFiles();
-            final List<File> crashReports = findLaunchCrashReports(storedFiles);
-
-            // cancel non-launch crash reports
-            storedFiles.removeAll(crashReports);
-            cancelQueuedFiles(storedFiles);
-
-            if (!crashReports.isEmpty()) {
-
-                // Block the main thread for a 2 second interval as the app may crash very soon.
-                // The request itself will run in a background thread and will continue after the 2
-                // second period until the request completes, or the app crashes.
-                flushOnLaunchCompleted = false;
-                logger.i("Attempting to send launch crash reports");
-
-                try {
-                    Async.run(new Runnable() {
-                        @Override
-                        public void run() {
-                            flushReports(crashReports);
-                            flushOnLaunchCompleted = true;
-                        }
-                    });
-                } catch (RejectedExecutionException ex) {
-                    logger.w("Failed to flush launch crash reports", ex);
-                    flushOnLaunchCompleted = true;
+        if (!config.getSendLaunchCrashesSynchronously()) {
+            return;
+        }
+        Future<?> future = null;
+        try {
+            future = bgTaskSevice.submitTask(TaskType.ERROR_REQUEST, new Runnable() {
+                @Override
+                public void run() {
+                    flushLaunchCrashReport();
                 }
+            });
+        } catch (RejectedExecutionException exc) {
+            logger.d("Failed to flush launch crash reports, continuing.", exc);
+        }
 
-                long waitMs = 0;
+        try {
+            if (future != null) {
+                future.get(LAUNCH_CRASH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException exc) {
+            logger.d("Failed to send launch crash reports within 2s timeout, continuing.", exc);
+        }
+    }
 
-                while (!flushOnLaunchCompleted && waitMs < LAUNCH_CRASH_TIMEOUT_MS) {
-                    try {
-                        Thread.sleep(LAUNCH_CRASH_POLL_MS);
-                        waitMs += LAUNCH_CRASH_POLL_MS;
-                    } catch (InterruptedException exception) {
-                        logger.w("Interrupted while waiting for launch crash report request");
-                    }
-                }
-                logger.i("Continuing with Bugsnag initialisation");
+    void flushLaunchCrashReport() {
+        List<File> storedFiles = findStoredFiles();
+        File launchCrashReport = findLaunchCrashReport(storedFiles);
+
+        // cancel non-launch crash reports
+        if (launchCrashReport != null) {
+            storedFiles.remove(launchCrashReport);
+        }
+        cancelQueuedFiles(storedFiles);
+
+        if (launchCrashReport != null) {
+            logger.i("Attempting to send the most recent launch crash report");
+            flushReports(Collections.singletonList(launchCrashReport));
+            logger.i("Continuing with Bugsnag initialisation");
+        } else {
+            logger.d("No startupcrash events to flush to Bugsnag.");
+        }
+    }
+
+    @Nullable
+    File findLaunchCrashReport(Collection<File> storedFiles) {
+        List<File> launchCrashes = new ArrayList<>();
+
+        for (File file : storedFiles) {
+            EventFilenameInfo filenameInfo = EventFilenameInfo.Companion.fromFile(file, config);
+            if (filenameInfo.isLaunchCrashReport()) {
+                launchCrashes.add(file);
             }
         }
 
-        flushAsync(); // flush any remaining errors async that weren't delivered
+        // sort to get most recent timestamp
+        Collections.sort(launchCrashes, EVENT_COMPARATOR);
+        return launchCrashes.isEmpty() ? null : launchCrashes.get(launchCrashes.size() - 1);
     }
 
     /**
      * Flush any on-disk errors to Bugsnag
      */
     void flushAsync() {
-        if (storeDirectory == null) {
-            return;
-        }
-
         try {
-            Async.run(new Runnable() {
+            bgTaskSevice.submitTask(TaskType.ERROR_REQUEST, new Runnable() {
                 @Override
                 public void run() {
-                    flushReports(findStoredFiles());
+                    List<File> storedFiles = findStoredFiles();
+                    if (storedFiles.isEmpty()) {
+                        logger.d("No regular events to flush to Bugsnag.");
+                    }
+                    flushReports(storedFiles);
                 }
             });
         } catch (RejectedExecutionException exception) {
@@ -131,31 +147,24 @@ class EventStore extends FileStore {
     }
 
     void flushReports(Collection<File> storedReports) {
-        if (!storedReports.isEmpty() && semaphore.tryAcquire(1)) {
-            try {
-                logger.i(String.format(Locale.US,
+        if (!storedReports.isEmpty()) {
+            logger.i(String.format(Locale.US,
                     "Sending %d saved error(s) to Bugsnag", storedReports.size()));
 
-                for (File eventFile : storedReports) {
-                    flushEventFile(eventFile);
-                }
-            } finally {
-                semaphore.release(1);
+            for (File eventFile : storedReports) {
+                flushEventFile(eventFile);
             }
         }
     }
 
     private void flushEventFile(File eventFile) {
         try {
-            String apiKey = getApiKeyFromFilename(eventFile);
-
-            if (apiKey == null) { // no info encoded, fallback to config value
-                apiKey = config.getApiKey();
-            }
-
-            EventPayload payload = new EventPayload(apiKey, eventFile, notifier);
-            DeliveryParams deliveryParams = config.getErrorApiDeliveryParams(payload.getApiKey());
-            DeliveryStatus deliveryStatus = config.getDelivery().deliver(payload, deliveryParams);
+            EventFilenameInfo eventInfo = EventFilenameInfo.Companion.fromFile(eventFile, config);
+            String apiKey = eventInfo.getApiKey();
+            EventPayload payload = new EventPayload(apiKey, null, eventFile, notifier, config);
+            DeliveryParams deliveryParams = config.getErrorApiDeliveryParams(payload);
+            Delivery delivery = config.getDelivery();
+            DeliveryStatus deliveryStatus = delivery.deliver(payload, deliveryParams);
 
             switch (deliveryStatus) {
                 case DELIVERED:
@@ -186,78 +195,19 @@ class EventStore extends FileStore {
         deleteStoredFiles(Collections.singleton(eventFile));
     }
 
-    boolean isLaunchCrashReport(File file) {
-        return file.getName().endsWith("_startupcrash.json");
-    }
-
-    /**
-     * Retrieves the api key encoded in the filename or null if this information
-     * is not encoded for the given event
-     */
-    @Nullable
-    String getApiKeyFromFilename(File file) {
-        String name = file.getName().replaceAll("_startupcrash.json", "");
-        int start = name.indexOf("_") + 1;
-        int end = name.indexOf("_", start);
-
-        if (start == 0 || end == -1 || end <= start) {
-            return null;
-        }
-        return name.substring(start, end);
-    }
-
-    private List<File> findLaunchCrashReports(Collection<File> storedFiles) {
-        List<File> launchCrashes = new ArrayList<>();
-
-        for (File file : storedFiles) {
-            if (isLaunchCrashReport(file)) {
-                launchCrashes.add(file);
-            }
-        }
-        return launchCrashes;
-    }
-
-    /**
-     * Generates a filename for the Event in the format
-     * "[timestamp]_[apiKey]_[UUID][startupcrash|not-jvm].json"
-     */
     @NonNull
     @Override
     String getFilename(Object object) {
-        String uuid = UUID.randomUUID().toString();
-        long now = System.currentTimeMillis();
-        return getFilename(object, uuid, null, now, storeDirectory);
-    }
-
-    String getFilename(Object object, String uuid, String apiKey,
-                       long timestamp, String storeDirectory) {
-        String suffix = "";
-
-        if (object instanceof Event) {
-            Event event = (Event) object;
-
-            Number duration = event.getApp().getDuration();
-            if (duration != null && isStartupCrash(duration.longValue())) {
-                suffix = STARTUP_CRASH;
-            }
-            apiKey = event.getApiKey();
-        } else { // generating a filename for an NDK event
-            suffix = "not-jvm";
-            if (apiKey.isEmpty()) {
-                apiKey = config.getApiKey();
-            }
-        }
-        return String.format(Locale.US, "%s%d_%s_%s%s.json",
-                storeDirectory, timestamp, apiKey, uuid, suffix);
+        EventFilenameInfo eventInfo
+                = EventFilenameInfo.Companion.fromEvent(object, null, config);
+        String encodedInfo = eventInfo.encode();
+        return String.format(Locale.US, "%s", encodedInfo);
     }
 
     String getNdkFilename(Object object, String apiKey) {
-        String uuid = UUID.randomUUID().toString();
-        long now = System.currentTimeMillis();
-        return getFilename(object, uuid, apiKey, now, storeDirectory);
-    }
-
-    boolean isStartupCrash(long durationMs) {
-        return durationMs < config.getLaunchCrashThresholdMs();
+        EventFilenameInfo eventInfo
+                = EventFilenameInfo.Companion.fromEvent(object, apiKey, config);
+        String encodedInfo = eventInfo.encode();
+        return String.format(Locale.US, "%s", encodedInfo);
     }
 }

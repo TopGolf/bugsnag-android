@@ -13,6 +13,9 @@ import java.io.File
 import java.util.Date
 import java.util.HashMap
 import java.util.Locale
+import java.util.concurrent.Callable
+import java.util.concurrent.Future
+import java.util.concurrent.RejectedExecutionException
 import kotlin.math.max
 import kotlin.math.min
 
@@ -20,34 +23,48 @@ internal class DeviceDataCollector(
     private val connectivity: Connectivity,
     private val appContext: Context,
     private val resources: Resources?,
-    private val installId: String,
+    private val deviceId: String?,
     private val buildInfo: DeviceBuildInfo,
     private val dataDirectory: File,
+    rootDetector: RootDetector,
+    bgTaskService: BackgroundTaskService,
     private val logger: Logger
 ) {
 
     private val displayMetrics = resources?.displayMetrics
     private val emulator = isEmulator()
-    private val rooted = isRooted()
     private val screenDensity = getScreenDensity()
     private val dpi = getScreenDensityDpi()
     private val screenResolution = getScreenResolution()
     private val locale = Locale.getDefault().toString()
     private val cpuAbi = getCpuAbi()
     private val runtimeVersions: MutableMap<String, Any>
+    private val rootedFuture: Future<Boolean>?
 
     init {
         val map = mutableMapOf<String, Any>()
         buildInfo.apiLevel?.let { map["androidApiLevel"] = it }
         buildInfo.osBuild?.let { map["osBuild"] = it }
         runtimeVersions = map
+
+        rootedFuture = try {
+            bgTaskService.submitTask(
+                TaskType.IO,
+                Callable {
+                    rootDetector.isRooted()
+                }
+            )
+        } catch (exc: RejectedExecutionException) {
+            logger.w("Failed to perform root detection checks", exc)
+            null
+        }
     }
 
     fun generateDevice() = Device(
         buildInfo,
         cpuAbi,
-        rooted,
-        installId,
+        checkIsRooted(),
+        deviceId,
         locale,
         calculateTotalMemory(),
         runtimeVersions.toMutableMap()
@@ -55,8 +72,8 @@ internal class DeviceDataCollector(
 
     fun generateDeviceWithState(now: Long) = DeviceWithState(
         buildInfo,
-        rooted,
-        installId,
+        checkIsRooted(),
+        deviceId,
         locale,
         calculateTotalMemory(),
         runtimeVersions.toMutableMap(),
@@ -80,23 +97,12 @@ internal class DeviceDataCollector(
         return map
     }
 
-    /**
-     * Check if the current Android device is rooted
-     */
-    private fun isRooted(): Boolean {
-        val tags = buildInfo.tags
-        if (tags != null && tags.contains("test-keys")) {
-            return true
+    private fun checkIsRooted(): Boolean {
+        return try {
+            rootedFuture != null && rootedFuture.get()
+        } catch (exc: Exception) {
+            false
         }
-
-        runCatching {
-            for (candidate in ROOT_INDICATORS) {
-                if (File(candidate).exists()) {
-                    return true
-                }
-            }
-        }
-        return false
     }
 
     /**
@@ -104,12 +110,14 @@ internal class DeviceDataCollector(
      *
      * @return true if the current device is an emulator
      */
-    private// genymotion
+    private // genymotion
     fun isEmulator(): Boolean {
         val fingerprint = buildInfo.fingerprint
-        return fingerprint != null && (fingerprint.startsWith("unknown")
-                || fingerprint.contains("generic")
-                || fingerprint.contains("vbox"))
+        return fingerprint != null && (
+            fingerprint.startsWith("unknown") ||
+                fingerprint.contains("generic") ||
+                fingerprint.contains("vbox")
+            )
     }
 
     /**
@@ -123,7 +131,7 @@ internal class DeviceDataCollector(
     private fun getBatteryLevel(): Float? {
         try {
             val ifilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-            val batteryStatus = appContext.registerReceiver(null, ifilter)
+            val batteryStatus = appContext.registerReceiverSafe(null, ifilter, logger)
 
             if (batteryStatus != null) {
                 return batteryStatus.getIntExtra(
@@ -143,7 +151,7 @@ internal class DeviceDataCollector(
     private fun isCharging(): Boolean? {
         try {
             val ifilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-            val batteryStatus = appContext.registerReceiver(null, ifilter)
+            val batteryStatus = appContext.registerReceiverSafe(null, ifilter, logger)
 
             if (batteryStatus != null) {
                 val status = batteryStatus.getIntExtra("status", -1)
@@ -248,20 +256,5 @@ internal class DeviceDataCollector(
 
     fun addRuntimeVersionInfo(key: String, value: String) {
         runtimeVersions[key] = value
-    }
-
-    companion object {
-        private val ROOT_INDICATORS = arrayOf(
-            // Common binaries
-            "/system/xbin/su", "/system/bin/su",
-            // < Android 5.0
-            "/system/app/Superuser.apk", "/system/app/SuperSU.apk",
-            // >= Android 5.0
-            "/system/app/Superuser", "/system/app/SuperSU",
-            // Fallback
-            "/system/xbin/daemonsu",
-            // Systemless root
-            "/su/bin"
-        )
     }
 }

@@ -1,5 +1,228 @@
 # Changelog
 
+## 5.9.3 (2021-05-18)
+
+* Avoid unnecessary collection of Thread stacktraces
+  [1249](https://github.com/bugsnag/bugsnag-android/pull/1249)
+
+* Prevent errors in rare cases where either ConnectivityManager or StorageManager is not available
+  [1251](https://github.com/bugsnag/bugsnag-android/pull/1251)
+  
+* Change the Bugsnag-Internal-Error header to "bugsnag-android"
+  [1252](https://github.com/bugsnag/bugsnag-android/pull/1252)
+
+* Prevent resource exhaustion when Throwable cause chains are recursive
+  [1255](https://github.com/bugsnag/bugsnag-android/pull/1255)
+
+* Added Date support to ObjectJsonStreamer
+  [1256](https://github.com/bugsnag/bugsnag-android/pull/1256)
+
+## 5.9.2 (2021-05-12)
+
+### Bug fixes
+
+* Guard against exceptions with null stack traces
+  [#1239](https://github.com/bugsnag/bugsnag-android/pull/1239)
+
+* Fix bug that terminated the app when multiple ANRs occur
+  [#1235](https://github.com/bugsnag/bugsnag-android/pull/1235)
+
+* Prevent rare NPE in log message
+  [#1238](https://github.com/bugsnag/bugsnag-android/pull/1238)
+
+* Prevent rare NPE when capturing thread traces
+  [#1237](https://github.com/bugsnag/bugsnag-android/pull/1237)
+
+* Catch exceptions thrown by Context.registerReceiver to prevent rare crashes
+  [#1240](https://github.com/bugsnag/bugsnag-android/pull/1240)
+
+* Fix possible NegativeArraySizeException in crash report deserialization
+  [#1245](https://github.com/bugsnag/bugsnag-android/pull/1245)
+
+## 5.9.1 (2021-04-22)
+
+### Bug fixes
+
+* Add projectPackages field to error payloads
+  [#1226](https://github.com/bugsnag/bugsnag-android/pull/1226)
+
+* Fix deserialization bug in persisted NDK errors
+  [#1220](https://github.com/bugsnag/bugsnag-android/pull/1220)
+
+## 5.9.0 (2021-03-30)
+
+### Enhancements
+
+* Improve detection of rooted devices
+  [#1194](https://github.com/bugsnag/bugsnag-android/pull/1194)
+  [#1195](https://github.com/bugsnag/bugsnag-android/pull/1195)
+  [#1198](https://github.com/bugsnag/bugsnag-android/pull/1198)
+  [#1200](https://github.com/bugsnag/bugsnag-android/pull/1200)
+  [#1201](https://github.com/bugsnag/bugsnag-android/pull/1201)
+
+* Bump compileSdkVersion to apiLevel 30
+  [#1202](https://github.com/bugsnag/bugsnag-android/pull/1202)
+
+* Collect whether the system has restricted background work for the app
+  [#1211](https://github.com/bugsnag/bugsnag-android/pull/1211)
+
+## 5.8.0 (2021-03-22)
+
+### Deprecations
+
+* `Configuration#launchCrashThresholdMs` is deprecated in favour of `Configuration#launchDurationMillis`
+
+### Enhancements
+
+* Add public API for crash-on-launch detection
+  [#1157](https://github.com/bugsnag/bugsnag-android/pull/1157)
+  [#1159](https://github.com/bugsnag/bugsnag-android/pull/1159)
+  [#1165](https://github.com/bugsnag/bugsnag-android/pull/1165)
+  [#1164](https://github.com/bugsnag/bugsnag-android/pull/1164)
+  [#1182](https://github.com/bugsnag/bugsnag-android/pull/1182)
+  [#1184](https://github.com/bugsnag/bugsnag-android/pull/1184)
+  [#1185](https://github.com/bugsnag/bugsnag-android/pull/1185)
+  [#1186](https://github.com/bugsnag/bugsnag-android/pull/1186)
+  [#1180](https://github.com/bugsnag/bugsnag-android/pull/1180)
+  [#1188](https://github.com/bugsnag/bugsnag-android/pull/1188)
+  [#1191](https://github.com/bugsnag/bugsnag-android/pull/1191)
+
+## 5.7.1 (2021-03-03)
+
+### Bug fixes
+
+* Fix for bad pointer access crash in JNI deliverReportAtPath
+  [#1169](https://github.com/bugsnag/bugsnag-android/pull/1169)
+
+## 5.7.0 (2021-02-18)
+
+### Enhancements
+
+* Support native stack traces in the ANR plugin
+   [#972](https://github.com/bugsnag/bugsnag-android/pull/972)
+
+### Bug fixes
+
+* Check additional JNI calls for pending exceptions and no-op
+  [#1142](https://github.com/bugsnag/bugsnag-android/pull/1142)
+* Move free() call to exit block
+  [#1140](https://github.com/bugsnag/bugsnag-android/pull/1140)
+* Replace strncpy() usage with safe function call
+  [#1149](https://github.com/bugsnag/bugsnag-android/pull/1149)
+* Prevent NPE when delivering internal error reports
+  [#1150](https://github.com/bugsnag/bugsnag-android/pull/1150)
+* Further robustify string copying and JNI exception checks
+  [#1153](https://github.com/bugsnag/bugsnag-android/pull/1153)
+
+## 5.6.2 (2021-02-15)
+
+### Bug fixes
+
+* Check additional JNI calls for pending exceptions and no-op
+  [#1133](https://github.com/bugsnag/bugsnag-android/pull/1133)
+
+* Fix rare crash when loading device ID
+  [#1137](https://github.com/bugsnag/bugsnag-android/pull/1137)
+
+## 5.6.1 (2021-02-15)
+
+The packaging for this version was incorrect so it should not be used.
+
+## 5.6.0 (2021-02-08)
+
+### Enhancements
+
+* Enable React Native promise rejection handling
+   [#1006](https://github.com/bugsnag/bugsnag-android/pull/1006)
+   [#1001](https://github.com/bugsnag/bugsnag-android/pull/1001)
+
+### Bug fixes
+
+* Check internal JNI calls for pending exceptions and no-op
+  [#1088](https://github.com/bugsnag/bugsnag-android/pull/1088)
+  [#1091](https://github.com/bugsnag/bugsnag-android/pull/1091)
+  [#1092](https://github.com/bugsnag/bugsnag-android/pull/1092)
+  [#1117](https://github.com/bugsnag/bugsnag-android/pull/1117)
+
+* Add global metadata to ANR error reports
+  [#1095](https://github.com/bugsnag/bugsnag-android/pull/1095)  
+
+## 5.5.2 (2021-01-27)
+
+### Bug fixes
+
+* Fix regression in 5.5.1 where ANR and NDK detection was not functional for apps using ProGuard/R8 or DexGuard
+  [#1096](https://github.com/bugsnag/bugsnag-android/pull/1096)
+
+## 5.5.1 (2021-01-21)
+
+### Bug fixes
+
+* Alter ANR SIGQUIT handler to stop interfering with Google's ANR reporting, and to avoid unsafe JNI calls from within a signal handler
+  [#1078](https://github.com/bugsnag/bugsnag-android/pull/1078)
+
+* Alter HTTP requests to stop using chunked transfer encoding
+  [#1077](https://github.com/bugsnag/bugsnag-android/pull/1077)
+  
+* Allow null device IDs, preventing rare crash in Bugsnag initialization
+  [#1083](https://github.com/bugsnag/bugsnag-android/pull/1083)
+
+## 5.5.0 (2021-01-07)
+
+### Enhancements
+
+This release supports initializing Bugsnag in multi processes apps. If your app uses Bugsnag in multiple processes, you should initialize Bugsnag
+with a unique `persistenceDirectory` value for each process. Please see [the docs](https://docs.bugsnag.com/platforms/android/faq/#does-bugsnag-support-multi-process-apps) for further information.
+
+* Store user information in persistenceDirectory
+  [#1017](https://github.com/bugsnag/bugsnag-android/pull/1017)
+
+* Use consistent device ID for multi process apps
+  [#1013](https://github.com/bugsnag/bugsnag-android/pull/1013)
+
+* Create synchronized store for user information
+  [#1010](https://github.com/bugsnag/bugsnag-android/pull/1010)
+
+* Add persistenceDirectory config option for controlling event/session storage
+  [#998](https://github.com/bugsnag/bugsnag-android/pull/998)
+
+* Add configuration option to control maximum number of persisted events/sessions
+  [#980](https://github.com/bugsnag/bugsnag-android/pull/980)
+
+* Increase kotlin dependency version to 1.3.72
+  [#1050](https://github.com/bugsnag/bugsnag-android/pull/1050)
+
+## 5.4.0 (2020-12-14)
+
+### Enhancements
+
+
+* Make `event.unhandled` overridable for NDK errors
+  [#1037](https://github.com/bugsnag/bugsnag-android/pull/1037)
+
+* Make `event.unhandled` overridable for React Native errors
+  [#1039](https://github.com/bugsnag/bugsnag-android/pull/1039)
+
+* Make `event.unhandled` overridable for JVM errors
+  [#1025](https://github.com/bugsnag/bugsnag-android/pull/1025)
+
+### Bug fixes
+
+* Prevent potential SHA-1 hash mismatch in Bugsnag-Integrity header for session requests
+  [#1043](https://github.com/bugsnag/bugsnag-android/pull/1043)
+
+## 5.3.1 (2020-12-09)
+
+### Bug fixes
+
+* Prevent potential SHA-1 hash mismatch in Bugsnag-Integrity header
+  [#1028](https://github.com/bugsnag/bugsnag-android/pull/1028)
+
+## 5.3.0 (2020-12-02)
+
+* Add integrity header to verify Error and Session API payloads have not changed
+  [#978](https://github.com/bugsnag/bugsnag-android/pull/978)
+
 ## 5.2.3 (2020-11-04)
 
 ### Bug fixes

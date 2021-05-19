@@ -15,7 +15,6 @@ captures/
 
 # Misc
 .DS_Store
-docs/
 infer-out/
 *.log
 CMakeFiles
@@ -26,3 +25,4 @@ bugsnag_test
 .cxx/
 .project
 Toptracer_export/temp/
+decisions.yml

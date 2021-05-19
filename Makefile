@@ -22,23 +22,18 @@ endif
 	 INSTRUMENTATION_DEVICES='["Google Nexus 5-4.4", "Google Pixel-7.1", "Google Pixel 3-9.0"]' \
 	 docker-compose up --build android-instrumentation-tests
 
-remote-integration-tests:
-ifeq ($(BROWSER_STACK_USERNAME),)
-	@$(error BROWSER_STACK_USERNAME is not defined)
-endif
-ifeq ($(BROWSER_STACK_ACCESS_KEY),)
-	@$(error BROWSER_STACK_ACCESS_KEY is not defined)
-endif
-	@./gradlew -PVERSION_NAME=9.9.9 assembleRelease publishToMavenLocal
-	@./gradlew -p=features/fixtures/mazerunner/ assembleRelease
-	@cp features/fixtures/mazerunner/build/outputs/apk/release/mazerunner-release.apk build/fixture.apk
-	@BRANCH_NAME= docker-compose build android-maze-runner
+TEST_FIXTURE_NDK_VERSION ?= 16.1.4479499
+test-fixtures:
+	# Build the notifier
+	@./gradlew -PVERSION_NAME=9.9.9 clean assembleRelease publishToMavenLocal
 
-ifneq ($(TEST_FEATURE),)
-	@BRANCH_NAME= APP_LOCATION=/app/build/fixture.apk docker-compose run android-maze-runner features/$(TEST_FEATURE)
-else
-	@BRANCH_NAME= APP_LOCATION=/app/build/fixture.apk docker-compose run android-maze-runner
-endif
+	# Build the full test fixture
+	@./gradlew -PTEST_FIXTURE_NDK_VERSION=$(TEST_FIXTURE_NDK_VERSION) -p=features/fixtures/mazerunner/ assembleRelease
+	@cp features/fixtures/mazerunner/app/build/outputs/apk/release/fixture.apk build/fixture.apk
+
+	# And the minimal (no NDK or ANR plugin) test fixture
+	@./gradlew -PMINIMAL_FIXTURE=true -PTEST_FIXTURE_NAME=fixture-minimal.apk  -p=features/fixtures/mazerunner/ assembleRelease
+	@cp features/fixtures/mazerunner/app/build/outputs/apk/release/fixture-minimal.apk build/fixture-minimal.apk
 
 bump:
 ifneq ($(shell git diff --staged),)
@@ -53,18 +48,3 @@ endif
 	@sed -i '' "s/var version: String = .*/var version: String = \"$(VERSION)\",/"\
 	 bugsnag-android-core/src/main/java/com/bugsnag/android/Notifier.kt
 	@sed -i '' "s/## TBD/## $(VERSION) ($(shell date '+%Y-%m-%d'))/" CHANGELOG.md
-
-# Makes a release
-release:
-ifneq ($(shell git diff origin/master..master),)
-	@$(error You have unpushed commits on the master branch)
-endif
-ifeq ($(VERSION),)
-	@$(error VERSION is not defined. Run with `make VERSION=number release`)
-endif
-	@git add -p CHANGELOG.md README.md gradle.properties bugsnag-android-core/src/main/java/com/bugsnag/android/Notifier.java
-	@git commit -m "Release v$(VERSION)"
-	@git tag v$(VERSION)
-	@git push origin master v$(VERSION)
-	@./gradlew assembleRelease publish bintrayUpload -PABI_FILTERS=arm64-v8a,armeabi,armeabi-v7a,x86,x86_64 \
-	 && ./gradlew assembleRelease publish bintrayUpload -PABI_FILTERS=arm64-v8a,armeabi,armeabi-v7a,x86,x86_64 -PreleaseNdkArtefact=true

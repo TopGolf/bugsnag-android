@@ -20,10 +20,13 @@ internal class EventDeserializer(
         val severityReasonType = severityReason["type"] as String
         val severity = map["severity"] as String
         val unhandled = map["unhandled"] as Boolean
-        val handledState = HandledState(
+        val originalUnhandled = getOriginalUnhandled(severityReason, unhandled)
+
+        val handledState = SeverityReason(
             severityReasonType,
             Severity.valueOf(severity.toUpperCase(Locale.US)),
             unhandled,
+            originalUnhandled,
             null
         )
 
@@ -51,13 +54,9 @@ internal class EventDeserializer(
         if (map.containsKey("nativeStack") && event.errors.isNotEmpty()) {
             runCatching {
                 val jsError = event.errors.first()
-                val nativeErrorDeserializer = NativeErrorDeserializer(
-                    jsError,
-                    projectPackages,
-                    client.logger
-                )
-                val nativeError = nativeErrorDeserializer.deserialize(map)
-                event.errors.add(nativeError)
+                val nativeStackDeserializer = NativeStackDeserializer(projectPackages, client.config)
+                val nativeStack = nativeStackDeserializer.deserialize(map)
+                jsError.stacktrace.addAll(0, nativeStack)
             }
         }
 
@@ -77,5 +76,16 @@ internal class EventDeserializer(
             event.addMetadata(it.key, it.value as Map<String, Any>)
         }
         return event
+    }
+
+    private fun getOriginalUnhandled(
+        map: Map<String, Any>,
+        unhandled: Boolean
+    ): Boolean {
+        val unhandledOverridden = map.getOrElse("unhandledOverridden", { false }) as Boolean
+        return when {
+            unhandledOverridden -> !unhandled
+            else -> unhandled
+        }
     }
 }

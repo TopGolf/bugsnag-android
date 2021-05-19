@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import java.io.File;
 import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.Date;
@@ -47,9 +48,14 @@ public class NativeInterface {
         return getClient().getContext();
     }
 
+    /**
+     * Retrieves the directory used to store native crash reports
+     */
     @NonNull
     public static String getNativeReportPath() {
-        return getClient().getAppContext().getCacheDir().getAbsolutePath() + "/bugsnag-native/";
+        ImmutableConfig config = getClient().getConfig();
+        File persistenceDirectory = config.getPersistenceDirectory();
+        return new File(persistenceDirectory, "bugsnag-native").getAbsolutePath();
     }
 
     /**
@@ -84,6 +90,7 @@ public class NativeInterface {
         data.put("durationInForeground", app.getDurationInForeground());
         data.put("versionCode", app.getVersionCode());
         data.put("inForeground", app.getInForeground());
+        data.put("isLaunching", app.isLaunching());
         data.put("binaryArch", app.getBinaryArch());
         data.putAll(source.getAppDataMetadata());
         return data;
@@ -300,11 +307,13 @@ public class NativeInterface {
      *                          stages
      * @param payloadBytes The raw JSON payload of the event
      * @param apiKey The apiKey for the event
+     * @param isLaunching whether the crash occurred when the app was launching
      */
     @SuppressWarnings("unused")
     public static void deliverReport(@Nullable byte[] releaseStageBytes,
                                      @NonNull byte[] payloadBytes,
-                                     @NonNull String apiKey) {
+                                     @NonNull String apiKey,
+                                     boolean isLaunching) {
         if (payloadBytes == null) {
             return;
         }
@@ -320,8 +329,10 @@ public class NativeInterface {
             EventStore eventStore = client.getEventStore();
 
             String filename = eventStore.getNdkFilename(payload, apiKey);
+            if (isLaunching) {
+                filename = filename.replace(".json", "startupcrash.json");
+            }
             eventStore.enqueueContentForDelivery(payload, filename);
-            eventStore.flushAsync();
         }
     }
 
@@ -365,13 +376,15 @@ public class NativeInterface {
             public boolean onError(@NonNull Event event) {
                 event.updateSeverityInternal(severity);
                 List<Error> errors = event.getErrors();
+                Error error = event.getErrors().get(0);
 
+                // update the error's type to C
                 if (!errors.isEmpty()) {
-                    errors.get(0).setErrorClass(name);
-                    errors.get(0).setErrorMessage(message);
+                    error.setErrorClass(name);
+                    error.setErrorMessage(message);
 
-                    for (Error error : errors) {
-                        error.setType(ErrorType.C);
+                    for (Error err : errors) {
+                        err.setType(ErrorType.C);
                     }
                 }
                 return true;
@@ -382,8 +395,9 @@ public class NativeInterface {
     @NonNull
     public static Event createEvent(@Nullable Throwable exc,
                                     @NonNull Client client,
-                                    @NonNull HandledState handledState) {
-        return new Event(exc, client.getConfig(), handledState, client.logger);
+                                    @NonNull SeverityReason severityReason) {
+        Metadata metadata = client.getMetadataState().getMetadata();
+        return new Event(exc, client.getConfig(), severityReason, metadata, client.logger);
     }
 
     @NonNull

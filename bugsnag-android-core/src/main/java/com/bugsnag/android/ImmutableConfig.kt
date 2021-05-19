@@ -3,8 +3,7 @@ package com.bugsnag.android
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import java.util.Date
-import java.util.HashMap
+import java.io.File
 
 internal data class ImmutableConfig(
     val apiKey: String,
@@ -24,9 +23,13 @@ internal data class ImmutableConfig(
     val delivery: Delivery,
     val endpoints: EndpointConfiguration,
     val persistUser: Boolean,
-    val launchCrashThresholdMs: Long,
+    val launchDurationMillis: Long,
     val logger: Logger,
-    val maxBreadcrumbs: Int
+    val maxBreadcrumbs: Int,
+    val maxPersistedEvents: Int,
+    val maxPersistedSessions: Int,
+    val persistenceDirectory: File,
+    val sendLaunchCrashesSynchronously: Boolean
 ) {
 
     /**
@@ -43,8 +46,8 @@ internal data class ImmutableConfig(
         enabledBreadcrumbTypes == null || enabledBreadcrumbTypes.contains(type)
 
     @JvmName("getErrorApiDeliveryParams")
-    internal fun getErrorApiDeliveryParams(apiKey: String) =
-        DeliveryParams(endpoints.notify, errorApiHeaders(apiKey))
+    internal fun getErrorApiDeliveryParams(payload: EventPayload) =
+        DeliveryParams(endpoints.notify, errorApiHeaders(payload))
 
     @JvmName("getSessionApiDeliveryParams")
     internal fun getSessionApiDeliveryParams() =
@@ -77,21 +80,28 @@ internal fun convertToImmutableConfig(
         delivery = config.delivery,
         endpoints = config.endpoints,
         persistUser = config.persistUser,
-        launchCrashThresholdMs = config.launchCrashThresholdMs,
+        launchDurationMillis = config.launchDurationMillis,
         logger = config.logger!!,
         maxBreadcrumbs = config.maxBreadcrumbs,
-        enabledBreadcrumbTypes = config.enabledBreadcrumbTypes?.toSet()
+        maxPersistedEvents = config.maxPersistedEvents,
+        maxPersistedSessions = config.maxPersistedSessions,
+        enabledBreadcrumbTypes = config.enabledBreadcrumbTypes?.toSet(),
+        persistenceDirectory = config.persistenceDirectory!!,
+        sendLaunchCrashesSynchronously = config.sendLaunchCrashesSynchronously
     )
 }
 
 internal fun sanitiseConfiguration(
-    appContext: Context, configuration: Configuration,
+    appContext: Context,
+    configuration: Configuration,
     connectivity: Connectivity
 ): ImmutableConfig {
     val packageName = appContext.packageName
     val packageManager = appContext.packageManager
     val packageInfo = runCatching { packageManager.getPackageInfo(packageName, 0) }.getOrNull()
-    val appInfo = runCatching { packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA ) }.getOrNull()
+    val appInfo = runCatching {
+        packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
+    }.getOrNull()
 
     // populate releaseStage
     if (configuration.releaseStage == null) {
@@ -130,9 +140,12 @@ internal fun sanitiseConfiguration(
     if (configuration.delivery == null) {
         configuration.delivery = DefaultDelivery(connectivity, configuration.logger!!)
     }
+
+    if (configuration.persistenceDirectory == null) {
+        configuration.persistenceDirectory = appContext.cacheDir
+    }
     return convertToImmutableConfig(configuration, buildUuid)
 }
 
 internal const val RELEASE_STAGE_DEVELOPMENT = "development"
 internal const val RELEASE_STAGE_PRODUCTION = "production"
-

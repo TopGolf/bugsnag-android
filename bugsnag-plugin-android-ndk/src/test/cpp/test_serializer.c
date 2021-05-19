@@ -44,6 +44,7 @@ bsg_app_info * loadAppTestCase(jint num) {
     app->duration_ms_offset = 0;
     app->duration_in_foreground_ms_offset = 0;
     app->in_foreground = true;
+    app->is_launching = true;
     strcpy(app->binary_arch, "x86");
     return app;
 }
@@ -106,7 +107,7 @@ bugsnag_event * loadContextTestCase(jint num) {
     return data;
 }
 
-bugsnag_event * loadHandledStateTestCase(jint num) {
+bugsnag_event * loadSeverityReasonTestCase(jint num) {
     bugsnag_event *data = malloc(sizeof(bugsnag_event));
     data->unhandled = true;
     data->severity = BSG_SEVERITY_ERR;

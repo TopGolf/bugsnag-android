@@ -17,7 +17,8 @@ internal class EventSerializationTest {
         @JvmStatic
         @Parameters
         fun testCases(): Collection<Pair<Event, String>> {
-            return generateSerializationTestCases("event",
+            return generateSerializationTestCases(
+                "event",
                 createEvent(),
 
                 // custom context
@@ -37,7 +38,7 @@ internal class EventSerializationTest {
 
                 // threads included
                 createEvent {
-                    val stacktrace = Stacktrace(arrayOf(), emptySet(), NoopLogger)
+                    val stacktrace = Stacktrace.stacktraceFromJavaTrace(arrayOf(), emptySet(), NoopLogger)
                     it.threads.clear()
                     it.threads.add(Thread(5, "main", ThreadType.ANDROID, true, stacktrace, NoopLogger))
                 },
@@ -52,7 +53,7 @@ internal class EventSerializationTest {
                     val crumb = Breadcrumb("hello world", BreadcrumbType.MANUAL, mutableMapOf(), Date(0), NoopLogger)
                     it.breadcrumbs = listOf(crumb)
 
-                    val stacktrace = Stacktrace(arrayOf(), emptySet(), NoopLogger)
+                    val stacktrace = Stacktrace.stacktraceFromJavaTrace(arrayOf(), emptySet(), NoopLogger)
                     val err = Error(ErrorInternal("WhoopsException", "Whoops", stacktrace), NoopLogger)
                     it.errors.clear()
                     it.errors.add(err)
@@ -64,7 +65,7 @@ internal class EventSerializationTest {
             val event = Event(
                 null,
                 generateImmutableConfig(),
-                HandledState.newInstance(HandledState.REASON_HANDLED_EXCEPTION),
+                SeverityReason.newInstance(SeverityReason.REASON_HANDLED_EXCEPTION),
                 NoopLogger
             )
             event.threads.clear()

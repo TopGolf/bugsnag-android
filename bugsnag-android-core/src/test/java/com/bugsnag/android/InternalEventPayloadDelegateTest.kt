@@ -2,15 +2,16 @@ package com.bugsnag.android
 
 import android.content.Context
 import android.os.storage.StorageManager
+import com.bugsnag.android.BugsnagTestUtils.generateAppWithState
 import com.bugsnag.android.BugsnagTestUtils.generateDeviceWithState
 import com.bugsnag.android.BugsnagTestUtils.generateImmutableConfig
-import com.bugsnag.android.BugsnagTestUtils.generateAppWithState
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers
 import org.mockito.Mock
-import org.mockito.Mockito.*
+import org.mockito.Mockito.`when`
 import org.mockito.junit.MockitoJUnitRunner
 
 @RunWith(MockitoJUnitRunner::class)
@@ -37,7 +38,12 @@ internal class InternalEventPayloadDelegateTest {
         `when`(this.appDataCollector.generateAppWithState()).thenReturn(app)
         app.durationInForeground = 500L
         app.inForeground = true
-        `when`(deviceDataCollector.generateDeviceWithState(ArgumentMatchers.anyLong())).thenReturn(generateDeviceWithState())
+        app.isLaunching = true
+        `when`(
+            deviceDataCollector
+                .generateDeviceWithState(ArgumentMatchers.anyLong())
+        )
+            .thenReturn(generateDeviceWithState())
 
         val config = generateImmutableConfig()
         val delegate = InternalReportDelegate(
@@ -48,16 +54,20 @@ internal class InternalEventPayloadDelegateTest {
             appDataCollector,
             deviceDataCollector,
             sessionTracker,
-            Notifier()
+            Notifier(),
+            BackgroundTaskService()
         )
 
-        val handledState = HandledState.newInstance(HandledState.REASON_HANDLED_EXCEPTION)
+        val handledState = SeverityReason.newInstance(
+            SeverityReason.REASON_HANDLED_EXCEPTION
+        )
         val event = Event(RuntimeException(), config, handledState, NoopLogger)
         delegate.reportInternalBugsnagError(event)
 
         // app
         assertEquals(500L, event.app.durationInForeground)
         assertEquals(true, event.app.inForeground)
+        assertEquals(true, event.app.isLaunching)
         assertNotNull(event.app)
 
         // device

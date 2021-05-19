@@ -13,15 +13,9 @@ services:
     environment:
       BROWSER_STACK_USERNAME:
       BROWSER_STACK_ACCESS_KEY:
+      SAUCE_LABS_USERNAME:
+      SAUCE_LABS_ACCESS_KEY:
       INSTRUMENTATION_DEVICES:
-      NDK_VERSION:
-
-  android-jvm:
-    build:
-      context: .
-      dockerfile: dockerfiles/Dockerfile.android-jvm
-      args:
-        BRANCH_NAME: ${BRANCH_NAME}
 
   android-builder:
     build:
@@ -29,8 +23,23 @@ services:
       dockerfile: dockerfiles/Dockerfile.android-builder
       args:
         BRANCH_NAME: ${BRANCH_NAME}
+    environment:
+      MINIMAL_FIXTURE:
+      TEST_FIXTURE_NDK_VERSION:
+      TEST_FIXTURE_NAME:
     volumes:
       - ./build:/app/build
+
+  android-publisher:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.android-publisher
+    environment:
+      KEY:
+      KEY_ID:
+      KEY_PASS:
+      PUBLISH_USER:
+      PUBLISH_PASS:
 
   android-sizer:
     build:
@@ -46,20 +55,26 @@ services:
       BUILDKITE_REPO:
 
   android-maze-runner:
-    build:
-      context: .
-      dockerfile: dockerfiles/Dockerfile.android-maze-runner
+    image: 855461928731.dkr.ecr.us-west-1.amazonaws.com/maze-runner-releases:latest-v5-cli
     environment:
-      VERBOSE:
       DEBUG:
+      BUILDKITE:
+      BUILDKITE_PIPELINE_NAME:
       BROWSER_STACK_USERNAME:
       BROWSER_STACK_ACCESS_KEY:
-      BROWSER_STACK_LOCAL_IDENTIFIER: ${BUILDKITE_JOB_ID:-maze-runner}
-      DEVICE_TYPE:
-      APP_LOCATION:
+      SAUCE_LABS_USERNAME:
+      SAUCE_LABS_ACCESS_KEY:
     volumes:
       - ./build:/app/build
       - ./maze-output:/app/maze-output
+      - ./features/:/app/features/
+
+  android-license-audit:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.android-license-audit
+      args:
+        BRANCH_NAME: ${BRANCH_NAME}
 
 networks:
   default:

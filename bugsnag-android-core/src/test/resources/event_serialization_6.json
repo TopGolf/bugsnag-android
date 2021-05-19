@@ -12,7 +12,8 @@
   },
   "severity": "warning",
   "severityReason": {
-    "type": "handledException"
+    "type": "handledException",
+    "unhandledOverridden": false
   },
   "unhandled": false,
   "exceptions": [
@@ -22,6 +23,9 @@
       "type": "android",
       "stacktrace": []
     }
+  ],
+  "projectPackages":[
+    "com.example.foo"
   ],
   "user": {
     "name": "Jamie"

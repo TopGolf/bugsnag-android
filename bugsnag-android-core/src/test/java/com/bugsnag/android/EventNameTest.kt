@@ -12,7 +12,9 @@ class EventNameTest {
     fun setUp() {
         val config = BugsnagTestUtils.generateImmutableConfig()
         val exception = RuntimeException("Example message", RuntimeException("Another"))
-        val handledState = HandledState.newInstance(HandledState.REASON_HANDLED_EXCEPTION)
+        val handledState = SeverityReason.newInstance(
+            SeverityReason.REASON_HANDLED_EXCEPTION
+        )
         event = Event(exception, config, handledState, NoopLogger)
     }
 
@@ -37,5 +39,4 @@ class EventNameTest {
         event.errors[0].errorMessage = "Some custom message"
         assertEquals("Some custom message", event.errors[0].errorMessage)
     }
-
 }

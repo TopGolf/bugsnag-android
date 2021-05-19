@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -35,23 +34,34 @@ class SessionTracker extends BaseObservable {
     // The first Activity in this 'session' was started at this time.
     private final AtomicLong lastEnteredForegroundMs = new AtomicLong(0);
     private final AtomicReference<Session> currentSession = new AtomicReference<>();
-    private final Semaphore flushingRequest = new Semaphore(1);
     private final ForegroundDetector foregroundDetector;
+    final BackgroundTaskService backgroundTaskService;
     final Logger logger;
 
-    SessionTracker(ImmutableConfig configuration, CallbackState callbackState,
-                   Client client, SessionStore sessionStore, Logger logger) {
-        this(configuration, callbackState, client, DEFAULT_TIMEOUT_MS, sessionStore, logger);
+    SessionTracker(ImmutableConfig configuration,
+                   CallbackState callbackState,
+                   Client client,
+                   SessionStore sessionStore,
+                   Logger logger,
+                   BackgroundTaskService backgroundTaskService) {
+        this(configuration, callbackState, client, DEFAULT_TIMEOUT_MS,
+                sessionStore, logger, backgroundTaskService);
     }
 
-    SessionTracker(ImmutableConfig configuration, CallbackState callbackState,
-                   Client client, long timeoutMs, SessionStore sessionStore, Logger logger) {
+    SessionTracker(ImmutableConfig configuration,
+                   CallbackState callbackState,
+                   Client client,
+                   long timeoutMs,
+                   SessionStore sessionStore,
+                   Logger logger,
+                   BackgroundTaskService backgroundTaskService) {
         this.configuration = configuration;
         this.callbackState = callbackState;
         this.client = client;
         this.timeoutMs = timeoutMs;
         this.sessionStore = sessionStore;
         this.foregroundDetector = new ForegroundDetector(client.getAppContext());
+        this.backgroundTaskService = backgroundTaskService;
         this.logger = logger;
         notifyNdkInForeground();
     }
@@ -146,6 +156,8 @@ class SessionTracker extends BaseObservable {
      * @param session the session
      */
     private void trackSessionIfNeeded(final Session session) {
+        logger.d("SessionTracker#trackSessionIfNeeded() - session captured by Client");
+
         boolean notifyForRelease = configuration.shouldNotifyForReleaseStage();
 
         session.setApp(client.getAppDataCollector().generateApp());
@@ -157,37 +169,8 @@ class SessionTracker extends BaseObservable {
                 && session.isTracked().compareAndSet(false, true)) {
             notifySessionStartObserver(session);
 
-            try {
-                Async.run(new Runnable() {
-                    @Override
-                    public void run() {
-                        //FUTURE:SM It would be good to optimise this
-                        flushStoredSessions();
-
-                        try {
-                            DeliveryStatus deliveryStatus = deliverSessionPayload(session);
-
-                            switch (deliveryStatus) {
-                                case UNDELIVERED:
-                                    logger.w("Storing session payload for future delivery");
-                                    sessionStore.write(session);
-                                    break;
-                                case FAILURE:
-                                    logger.w("Dropping invalid session tracking payload");
-                                    break;
-                                case DELIVERED:
-                                default:
-                                    break;
-                            }
-                        } catch (Exception exception) {
-                            logger.w("Session tracking payload failed", exception);
-                        }
-                    }
-                });
-            } catch (RejectedExecutionException exception) {
-                // This is on the current thread but there isn't much else we can do
-                sessionStore.write(session);
-            }
+            flushAsync();
+            flushInMemorySession(session);
         }
     }
 
@@ -234,7 +217,7 @@ class SessionTracker extends BaseObservable {
      */
     void flushAsync() {
         try {
-            Async.run(new Runnable() {
+            backgroundTaskService.submitTask(TaskType.SESSION_REQUEST, new Runnable() {
                 @Override
                 public void run() {
                     flushStoredSessions();
@@ -249,20 +232,15 @@ class SessionTracker extends BaseObservable {
      * Attempts to flush session payloads stored on disk
      */
     void flushStoredSessions() {
-        if (flushingRequest.tryAcquire(1)) {
-            try {
-                List<File> storedFiles = sessionStore.findStoredFiles();
+        List<File> storedFiles = sessionStore.findStoredFiles();
 
-                for (File storedFile : storedFiles) {
-                    flushStoredSession(storedFile);
-                }
-            } finally {
-                flushingRequest.release(1);
-            }
+        for (File storedFile : storedFiles) {
+            flushStoredSession(storedFile);
         }
     }
 
     void flushStoredSession(File storedFile) {
+        logger.d("SessionTracker#flushStoredSession() - attempting delivery");
         Session payload = new Session(storedFile, client.getNotifier(), logger);
 
         if (!payload.isV2Payload()) { // collect data here
@@ -275,6 +253,7 @@ class SessionTracker extends BaseObservable {
         switch (deliveryStatus) {
             case DELIVERED:
                 sessionStore.deleteStoredFiles(Collections.singletonList(storedFile));
+                logger.d("Sent 1 new session to Bugsnag");
                 break;
             case UNDELIVERED:
                 sessionStore.cancelQueuedFiles(Collections.singletonList(storedFile));
@@ -287,6 +266,44 @@ class SessionTracker extends BaseObservable {
                 break;
             default:
                 break;
+        }
+    }
+
+    private void flushInMemorySession(final Session session) {
+        try {
+            backgroundTaskService.submitTask(TaskType.SESSION_REQUEST, new Runnable() {
+                @Override
+                public void run() {
+                    deliverInMemorySession(session);
+                }
+            });
+        } catch (RejectedExecutionException exception) {
+            // This is on the current thread but there isn't much else we can do
+            sessionStore.write(session);
+        }
+    }
+
+    void deliverInMemorySession(Session session) {
+        try {
+            logger.d("SessionTracker#trackSessionIfNeeded() - attempting initial delivery");
+            DeliveryStatus deliveryStatus = deliverSessionPayload(session);
+
+            switch (deliveryStatus) {
+                case UNDELIVERED:
+                    logger.w("Storing session payload for future delivery");
+                    sessionStore.write(session);
+                    break;
+                case FAILURE:
+                    logger.w("Dropping invalid session tracking payload");
+                    break;
+                case DELIVERED:
+                    logger.d("Sent 1 new session to Bugsnag");
+                    break;
+                default:
+                    break;
+            }
+        } catch (Exception exception) {
+            logger.w("Session tracking payload failed", exception);
         }
     }
 

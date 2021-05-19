@@ -9,25 +9,24 @@ import java.io.IOException
  * This payload contains an error report and identifies the source application
  * using your API key.
  */
-class EventPayload : JsonStream.Streamable {
+class EventPayload @JvmOverloads internal constructor(
+    var apiKey: String?,
+    val event: Event? = null,
+    internal val eventFile: File? = null,
+    notifier: Notifier,
+    private val config: ImmutableConfig
+) : JsonStream.Streamable {
 
-    var apiKey: String?
-    private val eventFile: File?
-    val event: Event?
-    private val notifier: Notifier
-
-    internal constructor(apiKey: String?, eventFile: File, notifier: Notifier) {
-        this.apiKey = apiKey
-        this.eventFile = eventFile
-        this.event = null
-        this.notifier = notifier
+    internal val notifier = Notifier(notifier.name, notifier.version, notifier.url).apply {
+        dependencies = notifier.dependencies.toMutableList()
     }
 
-    internal constructor(apiKey: String?, event: Event, notifier: Notifier) {
-        this.apiKey = apiKey
-        this.eventFile = null
-        this.event = event
-        this.notifier = notifier
+    internal fun getErrorTypes(): Set<ErrorType> {
+        return when {
+            event != null -> event.impl.getErrorTypesFromStackframes()
+            eventFile != null -> EventFilenameInfo.fromFile(eventFile, config).errorTypes
+            else -> emptySet()
+        }
     }
 
     @Throws(IOException::class)
@@ -36,7 +35,6 @@ class EventPayload : JsonStream.Streamable {
         writer.name("apiKey").value(apiKey)
         writer.name("payloadVersion").value("4.0")
         writer.name("notifier").value(notifier)
-
         writer.name("events").beginArray()
 
         when {

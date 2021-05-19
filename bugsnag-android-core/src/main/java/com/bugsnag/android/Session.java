@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,13 +42,11 @@ public final class Session implements JsonStream.Streamable, UserAware {
 
     Session(String id, Date startedAt, User user, boolean autoCaptured,
             Notifier notifier, Logger logger) {
+        this(null, notifier, logger);
         this.id = id;
         this.startedAt = new Date(startedAt.getTime());
         this.user = user;
-        this.logger = logger;
         this.autoCaptured.set(autoCaptured);
-        this.file = null;
-        this.notifier = notifier;
     }
 
     Session(String id, Date startedAt, User user, int unhandledCount, int handledCount,
@@ -61,7 +60,9 @@ public final class Session implements JsonStream.Streamable, UserAware {
     Session(File file, Notifier notifier, Logger logger) {
         this.file = file;
         this.logger = logger;
-        this.notifier = notifier;
+        Notifier copy = new Notifier(notifier.getName(), notifier.getVersion(), notifier.getUrl());
+        copy.setDependencies(new ArrayList<>(notifier.getDependencies()));
+        this.notifier = copy;
     }
 
     private void logNull(String property) {
@@ -189,6 +190,10 @@ public final class Session implements JsonStream.Streamable, UserAware {
         return file != null && file.getName().endsWith("_v2.json");
     }
 
+    Notifier getNotifier() {
+        return notifier;
+    }
+
     @Override
     public void toStream(@NonNull JsonStream writer) throws IOException {
         if (file != null) {
@@ -227,7 +232,7 @@ public final class Session implements JsonStream.Streamable, UserAware {
     void serializeSessionInfo(@NonNull JsonStream writer) throws IOException {
         writer.beginObject();
         writer.name("id").value(id);
-        writer.name("startedAt").value(DateUtils.toIso8601(startedAt));
+        writer.name("startedAt").value(startedAt);
         writer.name("user").value(user);
         writer.endObject();
     }

@@ -1,16 +1,28 @@
 package com.bugsnag.android
 
-import java.io.BufferedWriter
+import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.io.OutputStreamWriter
+import java.io.PrintWriter
 import java.net.HttpURLConnection
 import java.net.HttpURLConnection.HTTP_BAD_REQUEST
 import java.net.HttpURLConnection.HTTP_CLIENT_TIMEOUT
 import java.net.HttpURLConnection.HTTP_OK
 import java.net.URL
-import java.nio.charset.Charset
 
-internal class DefaultDelivery(private val connectivity: Connectivity?, val logger: Logger) : Delivery {
+/**
+ * Converts a [JsonStream.Streamable] into JSON, placing it in a [ByteArray]
+ */
+internal fun serializeJsonPayload(streamable: JsonStream.Streamable): ByteArray {
+    return ByteArrayOutputStream().use { baos ->
+        JsonStream(PrintWriter(baos).buffered()).use(streamable::toStream)
+        baos.toByteArray()
+    }
+}
+
+internal class DefaultDelivery(
+    private val connectivity: Connectivity?,
+    val logger: Logger
+) : Delivery {
 
     override fun deliver(payload: Session, deliveryParams: DeliveryParams): DeliveryStatus {
         val status = deliver(deliveryParams.endpoint, payload, deliveryParams.headers)
@@ -27,7 +39,7 @@ internal class DefaultDelivery(private val connectivity: Connectivity?, val logg
     fun deliver(
         urlString: String,
         streamable: JsonStream.Streamable,
-        headers: Map<String, String>
+        headers: Map<String, String?>
     ): DeliveryStatus {
 
         if (connectivity != null && !connectivity.hasNetworkConnection()) {
@@ -36,33 +48,20 @@ internal class DefaultDelivery(private val connectivity: Connectivity?, val logg
         var conn: HttpURLConnection? = null
 
         try {
-            val url = URL(urlString)
-            conn = url.openConnection() as HttpURLConnection
-            conn.doOutput = true
-            conn.setChunkedStreamingMode(0)
-            conn.addRequestProperty("Content-Type", "application/json")
-
-            headers.forEach { (key, value) ->
-                conn.addRequestProperty(key, value)
-            }
-
-            var stream: JsonStream? = null
-
-            try {
-                val out = conn.outputStream
-                val charset = Charset.forName("UTF-8")
-                val writer = BufferedWriter(OutputStreamWriter(out, charset))
-                stream = JsonStream(writer)
-                streamable.toStream(stream)
-            } finally {
-                IOUtils.closeQuietly(stream)
-            }
+            val json = serializeJsonPayload(streamable)
+            conn = makeRequest(URL(urlString), json, headers)
 
             // End the request, get the response code
             val responseCode = conn.responseCode
             val status = getDeliveryStatus(responseCode)
             logRequestInfo(responseCode, conn, status)
             return status
+        } catch (oom: OutOfMemoryError) {
+            // attempt to persist the payload on disk. This approach uses streams to write to a
+            // file, which takes less memory than serializing the payload into a ByteArray, and
+            // therefore has a reasonable chance of retaining the payload for future delivery.
+            logger.w("Encountered OOM delivering payload, falling back to persist on disk", oom)
+            return DeliveryStatus.UNDELIVERED
         } catch (exception: IOException) {
             logger.w("IOException encountered in request", exception)
             return DeliveryStatus.UNDELIVERED
@@ -70,20 +69,54 @@ internal class DefaultDelivery(private val connectivity: Connectivity?, val logg
             logger.w("Unexpected error delivering payload", exception)
             return DeliveryStatus.FAILURE
         } finally {
-            IOUtils.close(conn)
+            conn?.disconnect()
         }
+    }
+
+    private fun makeRequest(
+        url: URL,
+        json: ByteArray,
+        headers: Map<String, String?>
+    ): HttpURLConnection {
+        val conn = url.openConnection() as HttpURLConnection
+        conn.doOutput = true
+
+        // avoids creating a buffer within HttpUrlConnection, see
+        // https://developer.android.com/reference/java/net/HttpURLConnection
+        conn.setFixedLengthStreamingMode(json.size)
+
+        // calculate the SHA-1 digest and add all other headers
+        computeSha1Digest(json)?.let { digest ->
+            conn.addRequestProperty(HEADER_BUGSNAG_INTEGRITY, digest)
+        }
+        headers.forEach { (key, value) ->
+            if (value != null) {
+                conn.addRequestProperty(key, value)
+            }
+        }
+
+        // write the JSON payload
+        conn.outputStream.use {
+            it.write(json)
+        }
+        return conn
     }
 
     private fun logRequestInfo(code: Int, conn: HttpURLConnection, status: DeliveryStatus) {
         logger.i(
             "Request completed with code $code, " +
-                    "message: ${conn.responseMessage}, " +
-                    "headers: ${conn.headerFields}"
+                "message: ${conn.responseMessage}, " +
+                "headers: ${conn.headerFields}"
         )
 
+        conn.inputStream.bufferedReader().use {
+            logger.d("Received request response: ${it.readText()}")
+        }
+
         if (status != DeliveryStatus.DELIVERED) {
-            val errBody = conn.errorStream.bufferedReader().readText()
-            logger.w("Request error details: $errBody")
+            conn.errorStream.bufferedReader().use {
+                logger.w("Request error details: ${it.readText()}")
+            }
         }
     }
 
@@ -98,5 +131,4 @@ internal class DefaultDelivery(private val connectivity: Connectivity?, val logg
             else -> DeliveryStatus.UNDELIVERED
         }
     }
-
 }

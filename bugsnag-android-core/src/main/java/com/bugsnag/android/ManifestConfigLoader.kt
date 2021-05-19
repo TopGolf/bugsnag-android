@@ -3,7 +3,6 @@ package com.bugsnag.android
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
-
 import androidx.annotation.VisibleForTesting
 import java.lang.IllegalArgumentException
 
@@ -36,8 +35,11 @@ internal class ManifestConfigLoader {
 
         // misc
         private const val MAX_BREADCRUMBS = "$BUGSNAG_NS.MAX_BREADCRUMBS"
+        private const val MAX_PERSISTED_EVENTS = "$BUGSNAG_NS.MAX_PERSISTED_EVENTS"
+        private const val MAX_PERSISTED_SESSIONS = "$BUGSNAG_NS.MAX_PERSISTED_SESSIONS"
         private const val LAUNCH_CRASH_THRESHOLD_MS = "$BUGSNAG_NS.LAUNCH_CRASH_THRESHOLD_MS"
-        private const val CODE_BUNDLE_ID = "$BUGSNAG_NS.CODE_BUNDLE_ID"
+        private const val LAUNCH_DURATION_MILLIS = "$BUGSNAG_NS.LAUNCH_DURATION_MILLIS"
+        private const val SEND_LAUNCH_CRASHES_SYNCHRONOUSLY = "$BUGSNAG_NS.SEND_LAUNCH_CRASHES_SYNCHRONOUSLY"
         private const val APP_TYPE = "$BUGSNAG_NS.APP_TYPE"
     }
 
@@ -73,8 +75,20 @@ internal class ManifestConfigLoader {
             // misc config
             with(config) {
                 maxBreadcrumbs = data.getInt(MAX_BREADCRUMBS, maxBreadcrumbs)
-                launchCrashThresholdMs =
-                    data.getInt(LAUNCH_CRASH_THRESHOLD_MS, launchCrashThresholdMs.toInt()).toLong()
+                maxPersistedEvents = data.getInt(MAX_PERSISTED_EVENTS, maxPersistedEvents)
+                maxPersistedSessions = data.getInt(MAX_PERSISTED_SESSIONS, maxPersistedSessions)
+                launchDurationMillis = data.getInt(
+                    LAUNCH_CRASH_THRESHOLD_MS,
+                    launchDurationMillis.toInt()
+                ).toLong()
+                launchDurationMillis = data.getInt(
+                    LAUNCH_DURATION_MILLIS,
+                    launchDurationMillis.toInt()
+                ).toLong()
+                sendLaunchCrashesSynchronously = data.getBoolean(
+                    SEND_LAUNCH_CRASHES_SYNCHRONOUSLY,
+                    sendLaunchCrashesSynchronously
+                )
             }
         }
         return config
@@ -120,8 +134,11 @@ internal class ManifestConfigLoader {
         }
     }
 
-    private fun getStrArray(data: Bundle, key: String,
-                            default: Set<String>?): Set<String>? {
+    private fun getStrArray(
+        data: Bundle,
+        key: String,
+        default: Set<String>?
+    ): Set<String>? {
         val delimitedStr = data.getString(key)
 
         return when (val ary = delimitedStr?.split(",")) {
@@ -129,5 +146,4 @@ internal class ManifestConfigLoader {
             else -> ary.toSet()
         }
     }
-
 }

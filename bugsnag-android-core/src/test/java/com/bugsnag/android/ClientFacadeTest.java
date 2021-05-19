@@ -91,6 +91,12 @@ public class ClientFacadeTest {
     @Mock
     DeviceWithState device;
 
+    @Mock
+    LastRunInfoStore lastRunInfoStore;
+
+    @Mock
+    LaunchCrashTracker launchCrashTracker;
+
     private Client client;
     private InterceptingLogger logger;
 
@@ -116,11 +122,12 @@ public class ClientFacadeTest {
                 sessionTracker,
                 activityBreadcrumbCollector,
                 sessionLifecycleCallback,
-                sharedPrefs,
                 connectivity,
                 storageManager,
                 logger,
-                deliveryDelegate
+                deliveryDelegate,
+                lastRunInfoStore,
+                launchCrashTracker
         );
 
         // required fields for generating an event
@@ -168,9 +175,12 @@ public class ClientFacadeTest {
     @Test
     public void setUserValid() {
         client.setUser("123", "joe@example.com", "Joe");
-        verify(userState, times(1)).setUser("123", "joe@example.com", "Joe");
+        User joe = new User("123", "joe@example.com", "Joe");
+        verify(userState, times(1)).setUser(joe);
+
         client.setUser(null, null, null);
-        verify(userState, times(1)).setUser(null, null, null);
+        User emptyUser = new User(null, null, null);
+        verify(userState, times(1)).setUser(emptyUser);
     }
 
     @Test
@@ -465,5 +475,11 @@ public class ClientFacadeTest {
     public void addRuntimeVersionInfo() {
         client.addRuntimeVersionInfo("foo", "bar");
         verify(deviceDataCollector, times(1)).addRuntimeVersionInfo("foo", "bar");
+    }
+
+    @Test
+    public void markLaunchCompleted() {
+        client.markLaunchCompleted();
+        verify(launchCrashTracker, times(1)).markLaunchCompleted();
     }
 }

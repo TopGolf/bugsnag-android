@@ -1,6 +1,7 @@
 package com.bugsnag.android
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import com.bugsnag.android.BugsnagTestUtils.generateConfiguration
@@ -14,8 +15,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
-import org.mockito.Mockito.*
+import org.mockito.Mockito.`when`
 import org.mockito.junit.MockitoJUnitRunner
+import java.nio.file.Files
 
 @RunWith(MockitoJUnitRunner::class)
 internal class ImmutableConfigTest {
@@ -57,7 +59,7 @@ internal class ImmutableConfigTest {
             // release stages
             assertTrue(discardClasses.isEmpty())
             assertNull(enabledReleaseStages)
-            assertTrue(projectPackages.isEmpty())
+            assertEquals(setOf("com.example.foo"), projectPackages)
             assertEquals(seed.releaseStage, releaseStage)
 
             // identifiers
@@ -70,11 +72,17 @@ internal class ImmutableConfigTest {
             assertEquals(seed.endpoints, endpoints)
 
             // behaviour
-            assertEquals(seed.launchCrashThresholdMs, launchCrashThresholdMs)
+            @Suppress("DEPRECATION") // tests deprecated option is set via launchDurationMillis
+            assertEquals(seed.launchCrashThresholdMs, launchDurationMillis)
+            assertEquals(seed.launchDurationMillis, launchDurationMillis)
+            assertTrue(sendLaunchCrashesSynchronously)
             assertEquals(NoopLogger, seed.logger)
             assertEquals(seed.maxBreadcrumbs, maxBreadcrumbs)
+            assertEquals(seed.maxPersistedEvents, maxPersistedEvents)
+            assertEquals(seed.maxPersistedSessions, maxPersistedSessions)
             assertEquals(seed.persistUser, persistUser)
             assertEquals(seed.enabledBreadcrumbTypes, BreadcrumbType.values().toSet())
+            assertNotNull(persistenceDirectory)
         }
     }
 
@@ -96,10 +104,13 @@ internal class ImmutableConfigTest {
 
         val endpoints = EndpointConfiguration("http://example.com:1234", "http://example.com:1235")
         seed.endpoints = endpoints
-        seed.launchCrashThresholdMs = 7000
+        seed.launchDurationMillis = 7000
         seed.maxBreadcrumbs = 37
+        seed.maxPersistedEvents = 55
+        seed.maxPersistedSessions = 103
         seed.persistUser = true
         seed.enabledBreadcrumbTypes = emptySet()
+        seed.sendLaunchCrashesSynchronously = false
 
         // verify overrides are copied across
         with(convertToImmutableConfig(seed, "f7ab")) {
@@ -130,37 +141,51 @@ internal class ImmutableConfigTest {
             assertEquals(endpoints1.sessions, endpoints.sessions)
 
             // behaviour
+            assertEquals(7000, seed.launchDurationMillis)
+            @Suppress("DEPRECATION") // should be same as launchDurationMillis
             assertEquals(7000, seed.launchCrashThresholdMs)
+            assertFalse(sendLaunchCrashesSynchronously)
             assertEquals(NoopLogger, seed.logger)
             assertEquals(37, seed.maxBreadcrumbs)
+            assertEquals(55, seed.maxPersistedEvents)
+            assertEquals(103, seed.maxPersistedSessions)
             assertTrue(seed.persistUser)
             assertTrue(seed.enabledBreadcrumbTypes!!.isEmpty())
+            assertNotNull(persistenceDirectory)
         }
     }
 
     @Test
-    fun verifyErrorApiHeaders() {
-        val config = convertToImmutableConfig(seed)
-        val headers = config.getErrorApiDeliveryParams(config.apiKey).headers
-        assertEquals(config.apiKey, headers["Bugsnag-Api-Key"])
-        assertNotNull(headers["Bugsnag-Sent-At"])
-        assertNotNull(headers["Bugsnag-Payload-Version"])
+    fun configSanitisationDevelopment() {
+        `when`(context.packageName).thenReturn("com.example.foo")
+        val appInfo = ApplicationInfo()
+        appInfo.flags = ApplicationInfo.FLAG_DEBUGGABLE
+        `when`(packageManager.getApplicationInfo("com.example.foo", PackageManager.GET_META_DATA)).thenReturn(appInfo)
+        `when`(context.packageManager).thenReturn(packageManager)
+        val cacheDir = Files.createTempDirectory("foo").toFile()
+        `when`(context.cacheDir).thenReturn(cacheDir)
+        val packageInfo = PackageInfo()
+        @Suppress("DEPRECATION")
+        packageInfo.versionCode = 55
+        `when`(packageManager.getPackageInfo("com.example.foo", 0)).thenReturn(packageInfo)
+
+        val seed = Configuration("5d1ec5bd39a74caa1267142706a7fb21")
+        seed.logger = NoopLogger
+        val config = sanitiseConfiguration(context, seed, connectivity)
+        assertEquals(NoopLogger, config.logger)
+        assertEquals(setOf("com.example.foo"), config.projectPackages)
+        assertEquals("development", config.releaseStage)
+        assertEquals(55, config.versionCode)
+        assertNotNull(config.delivery)
+        assertEquals(cacheDir, config.persistenceDirectory)
     }
 
     @Test
-    fun verifySessionApiHeaders() {
-        val config = convertToImmutableConfig(seed)
-        val headers = config.getSessionApiDeliveryParams().headers
-        assertEquals(config.apiKey, headers["Bugsnag-Api-Key"])
-        assertNotNull(headers["Bugsnag-Sent-At"])
-        assertNotNull(headers["Bugsnag-Payload-Version"])
-    }
-
-    @Test
-    fun configSanitisation() {
+    fun configSanitisationProduction() {
         `when`(context.packageName).thenReturn("com.example.foo")
         `when`(context.packageManager).thenReturn(packageManager)
-
+        val cacheDir = Files.createTempDirectory("foo").toFile()
+        `when`(context.cacheDir).thenReturn(cacheDir)
         val packageInfo = PackageInfo()
         @Suppress("DEPRECATION")
         packageInfo.versionCode = 55
@@ -173,7 +198,7 @@ internal class ImmutableConfigTest {
         assertEquals(setOf("com.example.foo"), config.projectPackages)
         assertEquals("production", config.releaseStage)
         assertEquals(55, config.versionCode)
-
         assertNotNull(config.delivery)
+        assertEquals(cacheDir, config.persistenceDirectory)
     }
 }

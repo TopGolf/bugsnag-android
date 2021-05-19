@@ -2,10 +2,14 @@
   "metaData": {},
   "severity": "warning",
   "severityReason": {
-    "type": "handledException"
+    "type": "handledException",
+    "unhandledOverridden": false
   },
   "unhandled": false,
   "exceptions": [],
+  "projectPackages":[
+    "com.example.foo"
+  ],
   "user": {},
   "app": {
     "type": "android",

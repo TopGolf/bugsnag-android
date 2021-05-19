@@ -1,6 +1,6 @@
 package com.bugsnag.android;
 
-import static com.bugsnag.android.HandledState.REASON_PROMISE_REJECTION;
+import static com.bugsnag.android.SeverityReason.REASON_PROMISE_REJECTION;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
@@ -18,20 +18,27 @@ class DeliveryDelegate extends BaseObservable {
     private final ImmutableConfig immutableConfig;
     final BreadcrumbState breadcrumbState;
     private final Notifier notifier;
+    final BackgroundTaskService backgroundTaskService;
 
-    DeliveryDelegate(Logger logger, EventStore eventStore,
-                     ImmutableConfig immutableConfig, BreadcrumbState breadcrumbState,
-                     Notifier notifier) {
+    DeliveryDelegate(Logger logger,
+                     EventStore eventStore,
+                     ImmutableConfig immutableConfig,
+                     BreadcrumbState breadcrumbState,
+                     Notifier notifier,
+                     BackgroundTaskService backgroundTaskService) {
         this.logger = logger;
         this.eventStore = eventStore;
         this.immutableConfig = immutableConfig;
         this.breadcrumbState = breadcrumbState;
         this.notifier = notifier;
+        this.backgroundTaskService = backgroundTaskService;
     }
 
     void deliver(@NonNull Event event) {
+        logger.d("DeliveryDelegate#deliver() - event being stored/delivered by Client");
         // Build the eventPayload
-        EventPayload eventPayload = new EventPayload(event.getApiKey(), event, notifier);
+        String apiKey = event.getApiKey();
+        EventPayload eventPayload = new EventPayload(apiKey, event, notifier, immutableConfig);
         Session session = event.getSession();
 
         if (session != null) {
@@ -44,11 +51,11 @@ class DeliveryDelegate extends BaseObservable {
             }
         }
 
-        if (event.isUnhandled()) {
+        if (event.getImpl().getOriginalUnhandled()) {
             // should only send unhandled errors if they don't terminate the process (i.e. ANRs)
-            String severityReasonType = event.impl.getSeverityReasonType();
+            String severityReasonType = event.getImpl().getSeverityReasonType();
             boolean promiseRejection = REASON_PROMISE_REJECTION.equals(severityReasonType);
-            boolean anr = event.impl.isAnr(event);
+            boolean anr = event.getImpl().isAnr(event);
             cacheEvent(event, anr || promiseRejection);
         } else {
             deliverPayloadAsync(event, eventPayload);
@@ -61,7 +68,7 @@ class DeliveryDelegate extends BaseObservable {
 
         // Attempt to send the eventPayload in the background
         try {
-            Async.run(new Runnable() {
+            backgroundTaskService.submitTask(TaskType.ERROR_REQUEST, new Runnable() {
                 @Override
                 public void run() {
                     deliverPayloadInternal(finalEventPayload, finalEvent);
@@ -75,8 +82,8 @@ class DeliveryDelegate extends BaseObservable {
 
     @VisibleForTesting
     DeliveryStatus deliverPayloadInternal(@NonNull EventPayload payload, @NonNull Event event) {
-        String apiKey = payload.getApiKey();
-        DeliveryParams deliveryParams = immutableConfig.getErrorApiDeliveryParams(apiKey);
+        logger.d("DeliveryDelegate#deliverPayloadInternal() - attempting event delivery");
+        DeliveryParams deliveryParams = immutableConfig.getErrorApiDeliveryParams(payload);
         Delivery delivery = immutableConfig.getDelivery();
         DeliveryStatus deliveryStatus = delivery.deliver(payload, deliveryParams);
 

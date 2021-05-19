@@ -44,6 +44,8 @@ class NativeBridge : Observer {
     external fun install(
         apiKey: String,
         reportingDirectory: String,
+        lastRunInfoPath: String,
+        consecutiveLaunchCrashes: Int,
         autoDetectNdkCrashes: Boolean,
         apiLevel: Int,
         is32bit: Boolean,
@@ -71,10 +73,13 @@ class NativeBridge : Observer {
     external fun pausedSession()
     external fun updateContext(context: String)
     external fun updateInForeground(inForeground: Boolean, activityName: String)
+    external fun updateIsLaunching(isLaunching: Boolean)
+    external fun updateLastRunInfo(consecutiveLaunchCrashes: Int)
     external fun updateOrientation(orientation: String)
     external fun updateUserId(newValue: String)
     external fun updateUserEmail(newValue: String)
     external fun updateUserName(newValue: String)
+    external fun getUnwindStackFunction(): Long
 
     /**
      * Creates a new native bridge for interacting with native components.
@@ -97,14 +102,32 @@ class NativeBridge : Observer {
             DeliverPending -> deliverPendingReports()
             is AddMetadata -> handleAddMetadata(msg)
             is ClearMetadataSection -> clearMetadataTab(makeSafe(msg.section))
-            is ClearMetadataValue -> removeMetadata(makeSafe(msg.section), makeSafe(msg.key ?: ""))
-            is AddBreadcrumb -> addBreadcrumb(makeSafe(msg.message), makeSafe(msg.type.toString()), makeSafe(msg.timestamp), msg.metadata)
+            is ClearMetadataValue -> removeMetadata(
+                makeSafe(msg.section),
+                makeSafe(msg.key ?: "")
+            )
+            is AddBreadcrumb -> addBreadcrumb(
+                makeSafe(msg.message),
+                makeSafe(msg.type.toString()),
+                makeSafe(msg.timestamp),
+                msg.metadata
+            )
             NotifyHandled -> addHandledEvent()
             NotifyUnhandled -> addUnhandledEvent()
             PauseSession -> pausedSession()
-            is StartSession -> startedSession(makeSafe(msg.id), makeSafe(msg.startedAt), msg.handledCount, msg.unhandledCount)
+            is StartSession -> startedSession(
+                makeSafe(msg.id),
+                makeSafe(msg.startedAt),
+                msg.handledCount,
+                msg.unhandledCount
+            )
             is UpdateContext -> updateContext(makeSafe(msg.context ?: ""))
-            is UpdateInForeground -> updateInForeground(msg.inForeground, makeSafe(msg.contextActivity ?: ""))
+            is UpdateInForeground -> updateInForeground(
+                msg.inForeground,
+                makeSafe(msg.contextActivity ?: "")
+            )
+            is StateEvent.UpdateLastRunInfo -> updateLastRunInfo(msg.consecutiveLaunchCrashes)
+            is StateEvent.UpdateIsLaunching -> updateIsLaunching(msg.isLaunching)
             is UpdateOrientation -> updateOrientation(msg.orientation ?: "")
             is UpdateUser -> {
                 updateUserId(makeSafe(msg.user.id ?: ""))
@@ -115,15 +138,13 @@ class NativeBridge : Observer {
     }
 
     private fun isInvalidMessage(msg: Any?): Boolean {
-        if (msg !is StateEvent) {
+        if (msg == null || msg !is StateEvent) {
             return true
         }
         if (!installed.get() && msg !is Install) {
             logger.w("Received message before INSTALL: $msg")
             return true
         }
-
-        logger.d(String.format("Received NDK message %s", msg))
         return false
     }
 
@@ -154,10 +175,12 @@ class NativeBridge : Observer {
             if (installed.get()) {
                 logger.w("Received duplicate setup message with arg: $arg")
             } else {
-                val reportPath = reportDirectory + UUID.randomUUID().toString() + ".crash"
+                val reportPath = File(reportDirectory, "${UUID.randomUUID()}.crash").absolutePath
                 install(
                     makeSafe(arg.apiKey),
                     reportPath,
+                    makeSafe(arg.lastRunInfoPath),
+                    arg.consecutiveLaunchCrashes,
                     arg.autoDetectNdkCrashes,
                     Build.VERSION.SDK_INT,
                     is32bit,

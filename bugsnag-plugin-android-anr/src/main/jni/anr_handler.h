@@ -1,7 +1,8 @@
 #ifndef BUGSNAG_ANR_HANDLER_H
 #define BUGSNAG_ANR_HANDLER_H
-#include <stdbool.h>
+#include "unwind_func.h"
 #include <jni.h>
+#include <stdbool.h>
 
 /**
  * The Application Not Responding (ANR) handler captures SIGQUIT being raised,
@@ -26,11 +27,12 @@ extern "C" {
  * Monitor for ANRs, writing to a byte buffer when detected
  * @param env the JNIEnv used to notify when an ANR occurs
  * @param plugin the AnrPlugin object that shouild be used to notify bugsnag
- * @param callPreviousSigquitHandler whether the previous SIGQUIT handler should be invoked
  */
-bool bsg_handler_install_anr(JNIEnv *env, jobject plugin, jboolean callPreviousSigquitHandler);
+bool bsg_handler_install_anr(JNIEnv *env, jobject plugin);
 
 void bsg_handler_uninstall_anr(void);
+
+void bsg_set_unwind_function(unwind_func func);
 
 #ifdef __cplusplus
 }

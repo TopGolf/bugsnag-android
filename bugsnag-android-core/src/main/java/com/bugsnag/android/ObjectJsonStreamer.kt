@@ -2,6 +2,7 @@ package com.bugsnag.android
 
 import java.io.IOException
 import java.lang.reflect.Array
+import java.util.Date
 
 internal class ObjectJsonStreamer {
 
@@ -21,6 +22,7 @@ internal class ObjectJsonStreamer {
             obj is Number -> writer.value(obj)
             obj is Boolean -> writer.value(obj)
             obj is JsonStream.Streamable -> obj.toStream(writer)
+            obj is Date -> writer.value(DateUtils.toIso8601(obj))
             obj is Map<*, *> -> mapToStream(writer, obj, shouldRedactKeys)
             obj is Collection<*> -> collectionToStream(writer, obj)
             obj.javaClass.isArray -> arrayToStream(writer, obj)
@@ -50,7 +52,7 @@ internal class ObjectJsonStreamer {
         writer.endArray()
     }
 
-    private fun arrayToStream(writer: JsonStream, obj: Any?) {
+    private fun arrayToStream(writer: JsonStream, obj: Any) {
         // Primitive array objects
         writer.beginArray()
         val length = Array.getLength(obj)
@@ -64,5 +66,4 @@ internal class ObjectJsonStreamer {
 
     // Should this key be redacted
     private fun isRedactedKey(key: String) = redactedKeys.any { key.contains(it) }
-
 }

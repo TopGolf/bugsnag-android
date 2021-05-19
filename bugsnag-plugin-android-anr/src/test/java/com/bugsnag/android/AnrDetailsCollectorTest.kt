@@ -64,10 +64,11 @@ class AnrDetailsCollectorTest {
     @Test
     fun anrDetailsAltered() {
         Mockito.`when`(client.config).thenReturn(BugsnagTestUtils.generateImmutableConfig())
+        Mockito.`when`(client.getMetadataState()).thenReturn(BugsnagTestUtils.generateMetadataState())
         val event = NativeInterface.createEvent(
             RuntimeException("whoops"),
             client,
-            HandledState.newInstance(HandledState.REASON_ANR)
+            SeverityReason.newInstance(SeverityReason.REASON_ANR)
         )
         collector.addErrorStateInfo(event, stateInfo)
         assertEquals(stateInfo.shortMsg.replace("ANR", ""), event.errors[0].errorMessage)

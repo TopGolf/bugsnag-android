@@ -5,6 +5,7 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import java.io.File;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -191,30 +192,111 @@ public class Configuration implements CallbackAware, MetadataAware, UserAware {
     }
 
     /**
-     * Sets the threshold in milliseconds for an uncaught error to be considered as a crash on
-     * launch. If a crash is detected on launch, Bugsnag will attempt to send the event
-     * synchronously.
-     *
-     * By default, this value is set at 5,000ms. Setting the value to 0 will disable this behaviour.
+     * Sets the directory where event and session JSON payloads should be persisted if a network
+     * request is not successful. If you use Bugsnag in multiple processes, then a unique
+     * persistenceDirectory <b>must</b> be configured for each process to prevent duplicate
+     * requests being made by each instantiation of Bugsnag.
+     * <p/>
+     * The persistenceDirectory also stores user information if {@link #getPersistUser()} has been
+     * set to true.
+     * <p/>
+     * By default, bugsnag sets the persistenceDirectory to {@link Context#getCacheDir()}.
+     * <p/>
+     * If the persistenceDirectory is changed between application launches, no attempt will be made
+     * to deliver events or sessions cached in the previous location.
      */
+    @Nullable
+    public File getPersistenceDirectory() {
+        return impl.getPersistenceDirectory();
+    }
+
+    /**
+     * Sets the directory where event and session JSON payloads should be persisted if a network
+     * request is not successful. If you use Bugsnag in multiple processes, then a unique
+     * persistenceDirectory <b>must</b> be configured for each process to prevent duplicate
+     * requests being made by each instantiation of Bugsnag.
+     * <p/>
+     * The persistenceDirectory also stores user information if {@link #getPersistUser()} has been
+     * set to true.
+     * <p/>
+     * By default, bugsnag sets the persistenceDirectory to {@link Context#getCacheDir()}.
+     * <p/>
+     * If the persistenceDirectory is changed between application launches, no attempt will be made
+     * to deliver events or sessions cached in the previous location.
+     */
+    public void setPersistenceDirectory(@Nullable File directory) {
+        impl.setPersistenceDirectory(directory);
+    }
+
+    /**
+     * Deprecated. Use {@link #getLaunchDurationMillis()} instead.
+     */
+    @Deprecated
     public long getLaunchCrashThresholdMs() {
-        return impl.getLaunchCrashThresholdMs();
+        getLogger().w("The launchCrashThresholdMs configuration option is deprecated "
+                + "and will be removed in a future release. Please use "
+                + "launchDurationMillis instead.");
+        return getLaunchDurationMillis();
+    }
+
+    /**
+     * Deprecated. Use {@link #setLaunchDurationMillis(long)} instead.
+     */
+    @Deprecated
+    public void setLaunchCrashThresholdMs(long launchCrashThresholdMs) {
+        getLogger().w("The launchCrashThresholdMs configuration option is deprecated "
+                + "and will be removed in a future release. Please use "
+                + "launchDurationMillis instead.");
+        setLaunchDurationMillis(launchCrashThresholdMs);
+    }
+
+    /**
+     * Sets whether or not Bugsnag should send crashes synchronously that occurred during
+     * the application's launch period. By default this behavior is enabled.
+     *
+     * See {@link #setLaunchDurationMillis(long)}
+     */
+    public boolean getSendLaunchCrashesSynchronously() {
+        return impl.getSendLaunchCrashesSynchronously();
+    }
+
+    /**
+     * Sets whether or not Bugsnag should send crashes synchronously that occurred during
+     * the application's launch period. By default this behavior is enabled.
+     *
+     * See {@link #setLaunchDurationMillis(long)}
+     */
+    public void setSendLaunchCrashesSynchronously(boolean sendLaunchCrashesSynchronously) {
+        impl.setSendLaunchCrashesSynchronously(sendLaunchCrashesSynchronously);
     }
 
     /**
      * Sets the threshold in milliseconds for an uncaught error to be considered as a crash on
-     * launch. If a crash is detected on launch, Bugsnag will attempt to send the event
-     * synchronously.
+     * launch. If a crash is detected on launch, Bugsnag will attempt to send the most recent
+     * event synchronously.
      *
-     * By default, this value is set at 5,000ms. Setting the value to 0 will disable this behaviour.
+     * By default, this value is set at 5,000ms. Setting the value to 0 will count all crashes
+     * as launch crashes until markLaunchCompleted() is called.
      */
-    public void setLaunchCrashThresholdMs(long launchCrashThresholdMs) {
-        if (launchCrashThresholdMs > MIN_LAUNCH_CRASH_THRESHOLD_MS) {
-            impl.setLaunchCrashThresholdMs(launchCrashThresholdMs);
+    public long getLaunchDurationMillis() {
+        return impl.getLaunchDurationMillis();
+    }
+
+    /**
+     * Sets the threshold in milliseconds for an uncaught error to be considered as a crash on
+     * launch. If a crash is detected on launch, Bugsnag will attempt to send the most recent
+     * event synchronously.
+     *
+     * By default, this value is set at 5,000ms. Setting the value to 0 will count all crashes
+     * as launch crashes until markLaunchCompleted() is called.
+     */
+    public void setLaunchDurationMillis(long launchDurationMillis) {
+        if (launchDurationMillis >= MIN_LAUNCH_CRASH_THRESHOLD_MS) {
+            impl.setLaunchDurationMillis(launchDurationMillis);
         } else {
             getLogger().e(String.format(Locale.US, "Invalid configuration value detected. "
-                    + "Option launchCrashThresholdMs should be a positive long value."
-                    + "Supplied value is %d", launchCrashThresholdMs));
+                    + "Option launchDurationMillis should be a positive long value."
+                    + "Supplied value is %d", launchDurationMillis));
         }
     }
 
@@ -434,6 +516,58 @@ public class Configuration implements CallbackAware, MetadataAware, UserAware {
             getLogger().e(String.format(Locale.US, "Invalid configuration value detected. "
                     + "Option maxBreadcrumbs should be an integer between 0-100. "
                     + "Supplied value is %d", maxBreadcrumbs));
+        }
+    }
+
+    /**
+     * Sets the maximum number of persisted events which will be stored. Once the threshold is
+     * reached, the oldest event will be deleted.
+     *
+     * By default, 32 events are persisted.
+     */
+    public int getMaxPersistedEvents() {
+        return impl.getMaxPersistedEvents();
+    }
+
+    /**
+     * Sets the maximum number of persisted events which will be stored. Once the threshold is
+     * reached, the oldest event will be deleted.
+     *
+     * By default, 32 events are persisted.
+     */
+    public void setMaxPersistedEvents(int maxPersistedEvents) {
+        if (maxPersistedEvents >= 0) {
+            impl.setMaxPersistedEvents(maxPersistedEvents);
+        } else {
+            getLogger().e(String.format(Locale.US, "Invalid configuration value detected. "
+                    + "Option maxPersistedEvents should be a positive integer."
+                    + "Supplied value is %d", maxPersistedEvents));
+        }
+    }
+
+    /**
+     * Sets the maximum number of persisted sessions which will be stored. Once the threshold is
+     * reached, the oldest session will be deleted.
+     *
+     * By default, 128 sessions are persisted.
+     */
+    public int getMaxPersistedSessions() {
+        return impl.getMaxPersistedSessions();
+    }
+
+    /**
+     * Sets the maximum number of persisted sessions which will be stored. Once the threshold is
+     * reached, the oldest session will be deleted.
+     *
+     * By default, 128 sessions are persisted.
+     */
+    public void setMaxPersistedSessions(int maxPersistedSessions) {
+        if (maxPersistedSessions >= 0) {
+            impl.setMaxPersistedSessions(maxPersistedSessions);
+        } else {
+            getLogger().e(String.format(Locale.US, "Invalid configuration value detected. "
+                    + "Option maxPersistedSessions should be a positive integer."
+                    + "Supplied value is %d", maxPersistedSessions));
         }
     }
 

@@ -46,7 +46,12 @@ class ManifestConfigLoaderTest {
 
             // misc
             assertEquals(maxBreadcrumbs, 25)
+            assertEquals(maxPersistedEvents, 32)
+            assertEquals(maxPersistedSessions, 128)
+            assertTrue(sendLaunchCrashesSynchronously)
+            @Suppress("DEPRECATION")
             assertEquals(launchCrashThresholdMs, 5000)
+            assertEquals(launchDurationMillis, 5000)
             assertEquals("android", appType)
         }
     }
@@ -79,7 +84,10 @@ class ManifestConfigLoaderTest {
 
             // misc
             putInt("com.bugsnag.android.MAX_BREADCRUMBS", 50)
-            putInt("com.bugsnag.android.LAUNCH_CRASH_THRESHOLD_MS", 7000)
+            putInt("com.bugsnag.android.MAX_PERSISTED_EVENTS", 52)
+            putInt("com.bugsnag.android.MAX_PERSISTED_SESSIONS", 64)
+            putInt("com.bugsnag.android.LAUNCH_DURATION_MILLIS", 7000)
+            putBoolean("com.bugsnag.android.SEND_LAUNCH_CRASHES_SYNCHRONOUSLY", false)
             putString("com.bugsnag.android.APP_TYPE", "react-native")
             putString("com.bugsnag.android.CODE_BUNDLE_ID", "123")
         }
@@ -110,7 +118,12 @@ class ManifestConfigLoaderTest {
 
             // misc
             assertEquals(maxBreadcrumbs, 50)
+            assertEquals(maxPersistedEvents, 52)
+            assertEquals(maxPersistedSessions, 64)
+            @Suppress("DEPRECATION")
             assertEquals(launchCrashThresholdMs, 7000)
+            assertEquals(launchDurationMillis, 7000)
+            assertFalse(sendLaunchCrashesSynchronously)
             assertEquals("react-native", appType)
         }
     }
@@ -120,12 +133,14 @@ class ManifestConfigLoaderTest {
         val data = Bundle().apply {
             putString("com.bugsnag.android.API_KEY", "5d1ec5bd39a74caa1267142706a7fb21")
             putBoolean("com.bugsnag.android.ENABLE_EXCEPTION_HANDLER", false)
+            putInt("com.bugsnag.android.LAUNCH_CRASH_THRESHOLD_MS", 8000)
         }
 
         val config = configLoader.load(data, null)
 
         with(config) {
             assertEquals("5d1ec5bd39a74caa1267142706a7fb21", apiKey)
+            assertEquals(8000, launchDurationMillis)
         }
     }
 }

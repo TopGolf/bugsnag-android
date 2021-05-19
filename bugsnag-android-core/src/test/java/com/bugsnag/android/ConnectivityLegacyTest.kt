@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.bugsnag.android
 
 import android.content.Context
@@ -14,7 +16,6 @@ import org.mockito.Mockito
 import org.mockito.Mockito.times
 import org.mockito.junit.MockitoJUnitRunner
 
-@Suppress("DEPRECATION")
 @RunWith(MockitoJUnitRunner::class)
 class ConnectivityLegacyTest {
 
@@ -28,14 +29,14 @@ class ConnectivityLegacyTest {
     fun registerForNetworkChanges() {
         val conn = ConnectivityLegacy(context, cm, null)
         conn.registerForNetworkChanges()
-        Mockito.verify(context, times(1)).registerReceiver(any(), any())
+        Mockito.verify(context, times(1)).registerReceiverSafe(any(), any())
     }
 
     @Test
     fun unregisterForNetworkChanges() {
         val conn = ConnectivityLegacy(context, cm, null)
         conn.unregisterForNetworkChanges()
-        Mockito.verify(context, times(1)).unregisterReceiver(any())
+        Mockito.verify(context, times(1)).unregisterReceiverSafe(any())
     }
 
     @Test
