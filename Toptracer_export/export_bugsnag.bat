@@ -23,18 +23,14 @@ set class_file=classes.jar
 set jlib_jlib_path=.\JavaLibs\
 set jlib_so_path=.\JavaLibs\armeabi-v7a\
 
+mkdir %jlib_jlib_path%
+mkdir %jlib_so_path%
+
 echo Extracting bugsnag_android_core
 copy %bugsnag_android_core_aar% %temp_zip%
 powershell -command "Expand-Archive -Force '%temp_zip%' '%unzippedpath%'"
 del %temp_zip%
 copy %unzippedpath%%class_file% %jlib_jlib_path%%bugsnag_android_core_jar%
-del /Q %unzippedpath%
-
-echo Extracting bugsnag_android_ndk
-copy %bugsnag_android_ndk_aar% %temp_zip%
-powershell -command "Expand-Archive -Force '%temp_zip%' '%unzippedpath%'"
-del %temp_zip%
-copy %unzippedpath%%class_file% %jlib_jlib_path%%bugsnag_android_jar%
 del /Q %unzippedpath%
 
 echo Extracting bugsnag_android_anr"
